@@ -1,15 +1,15 @@
 /**
  * POST /api/shorten
  *
- * Tao short link su dung SHA-256 + Base64URL (RFC 4648 §5)
- * Do dai tu 7 den 10 ky tu, ho tro deduplication & collision handling.
+ * Tao short link su dung SHA-256 + Base64URL (RFC 4648 §5).
+ * Tu dong chuan hoa & URL-encode link goc theo tieu chuan RFC 3986 / WHATWG.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
 import {
+  normalizeAndEncodeUrl,
   generateHashShortCode,
-  isValidUrl,
   isValidAlias,
   sanitizeBaseUrl,
   RESERVED_ALIASES,
@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
       length?: number;
     };
 
-    // --- 2. Validate original_url ---
+    // --- 2. Chuan hoa & URL-Encode link goc theo tieu chuan quoc te ---
     if (!original_url || typeof original_url !== "string") {
       return NextResponse.json(
         { error: "original_url la bat buoc" },
@@ -42,10 +42,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const trimmedUrl = original_url.trim();
-    if (!isValidUrl(trimmedUrl)) {
+    const normalizedUrl = normalizeAndEncodeUrl(original_url);
+    if (!normalizedUrl || normalizedUrl.length > 2048) {
       return NextResponse.json(
-        { error: "URL khong hop le. Phai bat dau bang http:// hoac https:// va toi da 2048 ky tu" },
+        {
+          error:
+            "URL khong hop le. Vui long nhap dung dinh dang (vi du: https://example.com/path)",
+        },
         { status: 400 }
       );
     }
@@ -75,14 +78,14 @@ export async function POST(request: NextRequest) {
       // Kiem tra alias da ton tai chua
       const { data: existing } = await supabase
         .from("links")
-        .select("id, original_url")
+        .select("id, original_url, created_at")
         .eq("short_code", trimmedAlias)
         .maybeSingle();
 
       if (existing) {
-        if (existing.original_url === trimmedUrl) {
+        if (existing.original_url === normalizedUrl) {
           // Cung URL va cung alias -> Tra ve link da tao truoc do
-          return buildSuccessResponse(trimmedAlias, trimmedUrl, request);
+          return buildSuccessResponse(trimmedAlias, normalizedUrl, request, existing.created_at);
         }
         return NextResponse.json(
           { error: `Alias "${trimmedAlias}" da duoc su dung, vui long chon alias khac` },
@@ -93,7 +96,7 @@ export async function POST(request: NextRequest) {
       // Insert alias moi
       const { data, error } = await supabase
         .from("links")
-        .insert({ short_code: trimmedAlias, original_url: trimmedUrl })
+        .insert({ short_code: trimmedAlias, original_url: normalizedUrl })
         .select("short_code, original_url, created_at")
         .single();
 
@@ -102,11 +105,10 @@ export async function POST(request: NextRequest) {
     }
 
     // --- 4. Sinh short code bang thuat toan SHA-256 + Base64URL ---
-    // Gioi han do dai trong khoang [7, 10]
     const codeLength = Math.min(Math.max(Number(length) || 7, 7), 10);
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const short_code = generateHashShortCode(trimmedUrl, codeLength, attempt);
+      const short_code = generateHashShortCode(normalizedUrl, codeLength, attempt);
 
       // Kiem tra short_code da ton tai trong DB chua
       const { data: existing } = await supabase
@@ -116,7 +118,7 @@ export async function POST(request: NextRequest) {
         .maybeSingle();
 
       if (existing) {
-        if (existing.original_url === trimmedUrl) {
+        if (existing.original_url === normalizedUrl) {
           // Idempotent / Deduplication: Cung URL goc da tung duoc rut gon
           return buildSuccessResponse(
             existing.short_code,
@@ -125,14 +127,14 @@ export async function POST(request: NextRequest) {
             existing.created_at
           );
         }
-        // Collision (khac URL nhung trung hash code): Tiep tuc loop voi attempt tiep theo
+        // Collision (khac URL nhung trung hash code): Tiep tuc loop de truot cua so hash
         continue;
       }
 
       // Insert link moi vao DB
       const { data, error } = await supabase
         .from("links")
-        .insert({ short_code, original_url: trimmedUrl })
+        .insert({ short_code, original_url: normalizedUrl })
         .select("short_code, original_url, created_at")
         .single();
 
