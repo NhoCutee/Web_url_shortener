@@ -1,7 +1,7 @@
 /**
  * GET /[shortCode] - Redirect handler
  *
- * Query DB theo short_code (do dai 1-10 ky tu), tang click_count bat dong bo,
+ * Query DB theo Primary Key `id` (VARCHAR(10)), tang click_count bat dong bo,
  * va redirect 302 sang original_url.
  */
 
@@ -14,7 +14,7 @@ export async function GET(
 ) {
   const { shortCode } = await params;
 
-  // Validation: short_code phai co do dai tu 1 den 10 ky tu
+  // Validation: id/shortCode phai co do dai tu 1 den 10 ky tu
   if (!shortCode || shortCode.length > 10) {
     return NextResponse.redirect(new URL("/not-found", _request.url));
   }
@@ -22,11 +22,11 @@ export async function GET(
   try {
     const supabase = createServerSupabaseClient();
 
-    // Query link theo short_code
+    // Query link truc tiep theo Primary Key `id`
     const { data: link, error } = await supabase
       .from("links")
-      .select("id, original_url, click_count")
-      .eq("short_code", shortCode)
+      .select("original_url, click_count")
+      .eq("id", shortCode)
       .maybeSingle();
 
     if (error || !link) {
@@ -35,11 +35,11 @@ export async function GET(
       );
     }
 
-    // Tang click_count bat dong bo (fire-and-forget de khong lam cham redirect)
+    // Tang click_count bat dong bo theo Primary Key `id`
     supabase
       .from("links")
       .update({ click_count: link.click_count + 1 })
-      .eq("id", link.id)
+      .eq("id", shortCode)
       .then(({ error: updateError }) => {
         if (updateError) {
           console.error(`[Redirect] Failed to update click_count for ${shortCode}:`, updateError);

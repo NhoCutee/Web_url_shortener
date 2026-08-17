@@ -2,7 +2,7 @@
  * POST /api/shorten
  *
  * Tao short link su dung SHA-256 + Base64URL (RFC 4648 §5).
- * Tu dong nhan dien domain (Vercel Production hoac Localhost) qua Request Headers.
+ * Primary Key: `id` (VARCHAR(10)) chua ma short code truc tiep.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -21,7 +21,6 @@ const MAX_RETRIES = 5;
  * Helper: Tu dong nhan dien Base URL tu Request Headers cua Vercel hoac Localhost
  */
 function getBaseUrl(request: NextRequest): string {
-  // 1. Doc header x-forwarded-host & x-forwarded-proto (chuan Vercel Edge / Reverse Proxy)
   const forwardedHost = request.headers.get("x-forwarded-host");
   const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
 
@@ -29,24 +28,20 @@ function getBaseUrl(request: NextRequest): string {
     return `${forwardedProto}://${forwardedHost}`;
   }
 
-  // 2. Doc host header truc tiep tu request
   const host = request.headers.get("host") || request.nextUrl.host;
   if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
     const proto = request.nextUrl.protocol.replace(":", "") || "https";
     return `${proto}://${host}`;
   }
 
-  // 3. Doc tu bien moi truong NEXT_PUBLIC_APP_URL neu co
   if (process.env.NEXT_PUBLIC_APP_URL) {
     return sanitizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
   }
 
-  // 4. Bien he thong mac dinh cua Vercel (khi deploy preview/production)
   if (process.env.VERCEL_URL) {
     return `https://${process.env.VERCEL_URL}`;
   }
 
-  // 5. Fallback khi chay local
   return `${request.nextUrl.protocol}//${request.nextUrl.host}`;
 }
 
@@ -108,16 +103,15 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Kiem tra alias da ton tai chua
+      // Kiem tra alias da ton tai chua theo Primary Key `id`
       const { data: existing } = await supabase
         .from("links")
         .select("id, original_url, created_at")
-        .eq("short_code", trimmedAlias)
+        .eq("id", trimmedAlias)
         .maybeSingle();
 
       if (existing) {
         if (existing.original_url === normalizedUrl) {
-          // Cung URL va cung alias -> Tra ve link da tao truoc do
           return buildSuccessResponse(trimmedAlias, normalizedUrl, request, existing.created_at);
         }
         return NextResponse.json(
@@ -126,35 +120,35 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      // Insert alias moi
+      // Insert alias moi voi id = trimmedAlias
       const { data, error } = await supabase
         .from("links")
-        .insert({ short_code: trimmedAlias, original_url: normalizedUrl })
-        .select("short_code, original_url, created_at")
+        .insert({ id: trimmedAlias, original_url: normalizedUrl })
+        .select("id, original_url, created_at")
         .single();
 
       if (error) throw error;
-      return buildSuccessResponse(data.short_code, data.original_url, request, data.created_at);
+      return buildSuccessResponse(data.id, data.original_url, request, data.created_at);
     }
 
     // --- 4. Sinh short code bang thuat toan SHA-256 + Base64URL ---
     const codeLength = Math.min(Math.max(Number(length) || 7, 7), 10);
 
     for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-      const short_code = generateHashShortCode(normalizedUrl, codeLength, attempt);
+      const shortCodeId = generateHashShortCode(normalizedUrl, codeLength, attempt);
 
-      // Kiem tra short_code da ton tai trong DB chua
+      // Kiem tra truc tiep tren Primary Key `id`
       const { data: existing } = await supabase
         .from("links")
-        .select("short_code, original_url, created_at")
-        .eq("short_code", short_code)
+        .select("id, original_url, created_at")
+        .eq("id", shortCodeId)
         .maybeSingle();
 
       if (existing) {
         if (existing.original_url === normalizedUrl) {
-          // Idempotent / Deduplication: Cung URL goc da tung duoc rut gon
+          // Deduplication: Cung URL goc da tung duoc rut gon
           return buildSuccessResponse(
-            existing.short_code,
+            existing.id,
             existing.original_url,
             request,
             existing.created_at
@@ -164,15 +158,15 @@ export async function POST(request: NextRequest) {
         continue;
       }
 
-      // Insert link moi vao DB
+      // Insert link moi vao DB voi id = shortCodeId
       const { data, error } = await supabase
         .from("links")
-        .insert({ short_code, original_url: normalizedUrl })
-        .select("short_code, original_url, created_at")
+        .insert({ id: shortCodeId, original_url: normalizedUrl })
+        .select("id, original_url, created_at")
         .single();
 
       if (!error && data) {
-        return buildSuccessResponse(data.short_code, data.original_url, request, data.created_at);
+        return buildSuccessResponse(data.id, data.original_url, request, data.created_at);
       }
 
       // Neu bi race condition trung unique key luc insert -> retry
@@ -197,10 +191,10 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Helper: Build response tra ve cho client voi Domain tu dong
+ * Helper: Build response tra ve cho client
  */
 function buildSuccessResponse(
-  short_code: string,
+  id: string,
   original_url: string,
   request: NextRequest,
   created_at?: string
@@ -209,8 +203,9 @@ function buildSuccessResponse(
 
   return NextResponse.json(
     {
-      short_code,
-      short_url: `${appUrl}/${short_code}`,
+      id,
+      short_code: id,
+      short_url: `${appUrl}/${id}`,
       original_url,
       created_at: created_at || new Date().toISOString(),
     },

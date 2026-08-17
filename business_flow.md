@@ -32,15 +32,15 @@ Next.js Server (Containerized Runtime)
 
 ```sql
 CREATE TABLE links (
-  id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  short_code   VARCHAR(10) NOT NULL,        -- 7 đến 10 ký tự Base64URL
+  
+  id           VARCHAR(10) PRIMARY KEY,     -- Primary Key truc tiep chua ma short code        -- 7 đến 10 ký tự Base64URL
   original_url TEXT NOT NULL,               -- URL gốc đã được chuẩn hóa & URL-encoded
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   click_count  INTEGER NOT NULL DEFAULT 0,  -- Số lần click
-  CONSTRAINT links_short_code_unique UNIQUE (short_code)
+  
 );
 
-CREATE INDEX idx_links_short_code ON links (short_code);   -- Tối ưu hot-path redirect
+-- short_code da la PRIMARY KEY nen da tu dong co clustered B-Tree index   -- Tối ưu hot-path redirect
 CREATE INDEX idx_links_created_at ON links (created_at DESC);
 ```
 
