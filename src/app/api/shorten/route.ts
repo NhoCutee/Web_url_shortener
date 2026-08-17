@@ -2,7 +2,7 @@
  * POST /api/shorten
  *
  * Tao short link su dung SHA-256 + Base64URL (RFC 4648 §5).
- * Tu dong chuan hoa & URL-encode link goc theo tieu chuan RFC 3986 / WHATWG.
+ * Tu dong nhan dien domain (Vercel Production hoac Localhost) qua Request Headers.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -16,6 +16,39 @@ import {
 } from "@/lib/utils";
 
 const MAX_RETRIES = 5;
+
+/**
+ * Helper: Tu dong nhan dien Base URL tu Request Headers cua Vercel hoac Localhost
+ */
+function getBaseUrl(request: NextRequest): string {
+  // 1. Doc header x-forwarded-host & x-forwarded-proto (chuan Vercel Edge / Reverse Proxy)
+  const forwardedHost = request.headers.get("x-forwarded-host");
+  const forwardedProto = request.headers.get("x-forwarded-proto") || "https";
+
+  if (forwardedHost) {
+    return `${forwardedProto}://${forwardedHost}`;
+  }
+
+  // 2. Doc host header truc tiep tu request
+  const host = request.headers.get("host") || request.nextUrl.host;
+  if (host && !host.includes("localhost") && !host.includes("127.0.0.1")) {
+    const proto = request.nextUrl.protocol.replace(":", "") || "https";
+    return `${proto}://${host}`;
+  }
+
+  // 3. Doc tu bien moi truong NEXT_PUBLIC_APP_URL neu co
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return sanitizeBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
+  }
+
+  // 4. Bien he thong mac dinh cua Vercel (khi deploy preview/production)
+  if (process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+
+  // 5. Fallback khi chay local
+  return `${request.nextUrl.protocol}//${request.nextUrl.host}`;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -127,7 +160,7 @@ export async function POST(request: NextRequest) {
             existing.created_at
           );
         }
-        // Collision (khac URL nhung trung hash code): Tiep tuc loop de truot cua so hash
+        // Collision: Tiep tuc loop de truot cua so hash
         continue;
       }
 
@@ -164,7 +197,7 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Helper: Build response tra ve cho client
+ * Helper: Build response tra ve cho client voi Domain tu dong
  */
 function buildSuccessResponse(
   short_code: string,
@@ -172,10 +205,7 @@ function buildSuccessResponse(
   request: NextRequest,
   created_at?: string
 ) {
-  const rawAppUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    `${request.nextUrl.protocol}//${request.nextUrl.host}`;
-  const appUrl = sanitizeBaseUrl(rawAppUrl);
+  const appUrl = getBaseUrl(request);
 
   return NextResponse.json(
     {

@@ -3,11 +3,10 @@
 /**
  * page.tsx - Trang chu URL Shortener
  *
- * Client Component xu ly form submit, cho phep chon do dai 7-10 ky tu,
- * custom alias, copy clipboard va danh sach link gan day.
+ * Tu dong nhan dien Domain hien tai (Vercel hoac Localhost) qua window.location.origin.
  */
 
-import { useState, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { sanitizeBaseUrl } from "@/lib/utils";
 
 interface ShortenResult {
@@ -28,11 +27,14 @@ export default function HomePage() {
   const [result, setResult] = useState<ShortenResult | null>(null);
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [recentLinks, setRecentLinks] = useState<ShortenResult[]>([]);
+  const [appUrl, setAppUrl] = useState("");
 
-  const rawAppUrl =
-    process.env.NEXT_PUBLIC_APP_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
-  const appUrl = sanitizeBaseUrl(rawAppUrl);
+  // Tu dong lay origin thuc te cua trinh duyet (https://meobo.vercel.app hoac http://localhost:3000)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setAppUrl(window.location.origin);
+    }
+  }, []);
 
   // --- Handlers ---
   const handleSubmit = useCallback(
@@ -99,6 +101,8 @@ export default function HomePage() {
       setTimeout(() => setCopiedUrl((curr) => (curr === textToCopy ? null : curr)), 2000);
     }
   }, []);
+
+  const displayPrefix = appUrl ? `${appUrl}/` : ".../";
 
   return (
     <div className="page-container">
@@ -198,7 +202,7 @@ export default function HomePage() {
 
               {showAlias && (
                 <div className="alias-row">
-                  <span className="input-prefix">{appUrl}/</span>
+                  <span className="input-prefix">{displayPrefix}</span>
                   <input
                     id="alias-input"
                     type="text"
