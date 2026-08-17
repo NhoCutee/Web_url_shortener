@@ -1,21 +1,20 @@
-﻿/**
+/**
  * POST /api/shorten
  *
- * Nhan original_url (bat buoc) va alias (tuy chon, toi da 7 ky tu)
- * Tra ve: { short_code, short_url, original_url, created_at }
- *
- * Logic xu ly:
- *   1. Parse va validate body (original_url, alias?)
- *   2. Neu co alias: kiem tra hop le va UNIQUE -> insert thang
- *   3. Neu khong co alias: sinh ngau nhien short_code, retry neu trung (toi da 5 lan)
- *   4. Insert vao Supabase -> tra ve ket qua
+ * Tao short link su dung SHA-256 + Base64URL (RFC 4648 §5)
+ * Do dai tu 7 den 10 ky tu, ho tro deduplication & collision handling.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase";
-import { generateShortCode, isValidUrl, isValidAlias } from "@/lib/utils";
+import {
+  generateHashShortCode,
+  isValidUrl,
+  isValidAlias,
+  sanitizeBaseUrl,
+  RESERVED_ALIASES,
+} from "@/lib/utils";
 
-// So lan thu lai toi da khi sinh short_code bi trung (collision)
 const MAX_RETRIES = 5;
 
 export async function POST(request: NextRequest) {
@@ -29,9 +28,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { original_url, alias } = body as {
+    const { original_url, alias, length = 7 } = body as {
       original_url?: string;
       alias?: string;
+      length?: number;
     };
 
     // --- 2. Validate original_url ---
@@ -45,21 +45,28 @@ export async function POST(request: NextRequest) {
     const trimmedUrl = original_url.trim();
     if (!isValidUrl(trimmedUrl)) {
       return NextResponse.json(
-        { error: "URL khong hop le. Phai bat dau bang http:// hoac https://" },
+        { error: "URL khong hop le. Phai bat dau bang http:// hoac https:// va toi da 2048 ky tu" },
         { status: 400 }
       );
     }
 
-    // --- 3. Xu ly alias (neu co) ---
     const supabase = createServerSupabaseClient();
 
+    // --- 3. Truong hop nguoi dung chi dinh Custom Alias ---
     if (alias !== undefined && alias !== "") {
-      // Validate format alias
-      if (!isValidAlias(alias)) {
+      const trimmedAlias = alias.trim();
+
+      if (RESERVED_ALIASES.has(trimmedAlias.toLowerCase())) {
+        return NextResponse.json(
+          { error: `Alias "${trimmedAlias}" la tu khoa he thong, vui long chon alias khac` },
+          { status: 400 }
+        );
+      }
+
+      if (!isValidAlias(trimmedAlias)) {
         return NextResponse.json(
           {
-            error:
-              "Alias khong hop le. Chi duoc dung a-z, A-Z, 0-9, -, _ va toi da 7 ky tu",
+            error: "Alias khong hop le. Chi duoc dung a-z, A-Z, 0-9, -, _ va do dai tu 1 den 10 ky tu",
           },
           { status: 400 }
         );
@@ -68,65 +75,79 @@ export async function POST(request: NextRequest) {
       // Kiem tra alias da ton tai chua
       const { data: existing } = await supabase
         .from("links")
-        .select("id")
-        .eq("short_code", alias)
-        .single();
+        .select("id, original_url")
+        .eq("short_code", trimmedAlias)
+        .maybeSingle();
 
       if (existing) {
+        if (existing.original_url === trimmedUrl) {
+          // Cung URL va cung alias -> Tra ve link da tao truoc do
+          return buildSuccessResponse(trimmedAlias, trimmedUrl, request);
+        }
         return NextResponse.json(
-          { error: `Alias "${alias}" da duoc su dung, vui long chon alias khac` },
-          { status: 409 } // 409 Conflict
+          { error: `Alias "${trimmedAlias}" da duoc su dung, vui long chon alias khac` },
+          { status: 409 }
         );
       }
 
-      // Insert voi alias custom
+      // Insert alias moi
       const { data, error } = await supabase
         .from("links")
-        .insert({ short_code: alias, original_url: trimmedUrl })
-        .select()
+        .insert({ short_code: trimmedAlias, original_url: trimmedUrl })
+        .select("short_code, original_url, created_at")
         .single();
 
       if (error) throw error;
-      return buildSuccessResponse(data.short_code, data.original_url, data.created_at, request);
+      return buildSuccessResponse(data.short_code, data.original_url, request, data.created_at);
     }
 
-    // --- 4. Sinh short_code ngau nhien voi retry logic ---
-    // Tai sao phai retry?
-    //   - Xac suat trung (collision) rat thap nhung khong bang 0
-    //   - Retry toi da 5 lan la du an toan (62^7 = 3.5 ty slots)
-    let lastError: unknown = null;
+    // --- 4. Sinh short code bang thuat toan SHA-256 + Base64URL ---
+    // Gioi han do dai trong khoang [7, 10]
+    const codeLength = Math.min(Math.max(Number(length) || 7, 7), 10);
 
-    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-      const short_code = generateShortCode(7);
+    for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+      const short_code = generateHashShortCode(trimmedUrl, codeLength, attempt);
 
+      // Kiem tra short_code da ton tai trong DB chua
+      const { data: existing } = await supabase
+        .from("links")
+        .select("short_code, original_url, created_at")
+        .eq("short_code", short_code)
+        .maybeSingle();
+
+      if (existing) {
+        if (existing.original_url === trimmedUrl) {
+          // Idempotent / Deduplication: Cung URL goc da tung duoc rut gon
+          return buildSuccessResponse(
+            existing.short_code,
+            existing.original_url,
+            request,
+            existing.created_at
+          );
+        }
+        // Collision (khac URL nhung trung hash code): Tiep tuc loop voi attempt tiep theo
+        continue;
+      }
+
+      // Insert link moi vao DB
       const { data, error } = await supabase
         .from("links")
         .insert({ short_code, original_url: trimmedUrl })
-        .select()
+        .select("short_code, original_url, created_at")
         .single();
 
       if (!error && data) {
-        return buildSuccessResponse(data.short_code, data.original_url, data.created_at, request);
+        return buildSuccessResponse(data.short_code, data.original_url, request, data.created_at);
       }
 
-      // Neu loi la do UNIQUE constraint vi pham -> thu lai
-      // PostgreSQL error code 23505 = unique_violation
-      if (
-        error &&
-        typeof error === "object" &&
-        "code" in error &&
-        error.code === "23505"
-      ) {
-        lastError = error;
-        continue; // Thu lai
+      // Neu bi race condition trung unique key luc insert -> retry
+      if (error && "code" in error && error.code === "23505") {
+        continue;
       }
 
-      // Loi khac (ket noi DB, ...) -> throw ngay
       throw error;
     }
 
-    // Het so lan retry
-    console.error("Failed after max retries:", lastError);
     return NextResponse.json(
       { error: "Khong the tao short code. Vui long thu lai." },
       { status: 500 }
@@ -141,25 +162,25 @@ export async function POST(request: NextRequest) {
 }
 
 /**
- * Helper: Tao response thanh cong
- * Tra ve short_url day du de frontend hien thi ngay
+ * Helper: Build response tra ve cho client
  */
 function buildSuccessResponse(
   short_code: string,
   original_url: string,
-  created_at: string,
-  request: NextRequest
+  request: NextRequest,
+  created_at?: string
 ) {
-  const appUrl =
+  const rawAppUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
     `${request.nextUrl.protocol}//${request.nextUrl.host}`;
+  const appUrl = sanitizeBaseUrl(rawAppUrl);
 
   return NextResponse.json(
     {
       short_code,
       short_url: `${appUrl}/${short_code}`,
       original_url,
-      created_at,
+      created_at: created_at || new Date().toISOString(),
     },
     { status: 201 }
   );

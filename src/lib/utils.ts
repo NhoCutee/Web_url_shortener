@@ -1,41 +1,75 @@
-﻿/**
- * utils.ts - Cac ham tien ich dung chung
+/**
+ * utils.ts - Cac ham tien ich ma hoa SHA-256 & Base64URL theo chuan quoc te (RFC 4648)
  */
 
-// Bo ky tu base62: 62 ky tu (a-z, A-Z, 0-9)
-// Khong dung 0, O, l, I de tranh nham lan khi doc
-const BASE62_CHARS =
-  "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ";
+import { createHash } from "crypto";
+
+// Danh sach cac alias bi cam vi trung voi route he thong cua Next.js
+export const RESERVED_ALIASES = new Set([
+  "api",
+  "not-found",
+  "favicon.ico",
+  "robots.txt",
+  "sitemap.xml",
+  "_next",
+  "static",
+  "404",
+  "500",
+  "login",
+  "dashboard",
+  "admin",
+]);
 
 /**
- * Sinh ngau nhien mot short_code co do dai `length` ky tu (mac dinh: 7)
- *
- * Cach hoat dong:
- *   - Dung crypto.getRandomValues() (Web Crypto API - co san trong Node.js 18+)
- *     de sinh byte ngau nhien co chat luong cao (cryptographically secure)
- *   - Moi byte (0-255) duoc map sang ky tu trong BASE62_CHARS bang phep chia du
- *   - Ket qua: chuoi 7 ky tu tu 62 ky tu -> 62^7 = ~3.5 ty combination
- *
- * Tai sao khong dung Math.random()?
- *   - Math.random() KHONG cryptographically secure
- *   - Co the bi predict trong mot so moi truong
- *   - crypto.getRandomValues() dam bao entropy cao
+ * Chuyen buffer sang chuoi Base64URL theo tieu chuan RFC 4648 §5
+ * - Thay '+' bang '-'
+ * - Thay '/' bang '_'
+ * - Xoa padding '=' o cuoi
  */
-export function generateShortCode(length = 7): string {
-  const bytes = new Uint8Array(length);
-  crypto.getRandomValues(bytes);
-  return Array.from(bytes)
-    .map((b) => BASE62_CHARS[b % BASE62_CHARS.length])
-    .join("");
+export function bufferToBase64Url(buffer: Buffer): string {
+  return buffer
+    .toString("base64")
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/, "");
 }
 
 /**
- * Validate URL co hop le khong
- *
- * Dung URL constructor: neu throw thi URL khong hop le
- * Chi chap nhan http:// va https:// (khong chap nhan ftp://, file://, ...)
+ * Sinh short code tu URL goc bang thuat toan SHA-256 + Base64URL (RFC 4648)
+ * 
+ * @param url URL goc can rut gon
+ * @param length Do dai short code (tu 7 den 10 ky tu, mac dinh 7)
+ * @param attempt So lan thu lai khi co collision (de truot cua so hash)
+ */
+export function generateHashShortCode(
+  url: string,
+  length: number = 7,
+  attempt: number = 0
+): string {
+  const targetLength = Math.min(Math.max(length, 7), 10);
+
+  // Tao hash SHA-256 tu URL (them salt o cac lan retry collision)
+  const input = attempt === 0 ? url : `${url}#salt_${attempt}`;
+  const hashBuffer = createHash("sha256").update(input, "utf8").digest();
+
+  // Encode sang Base64URL chuan quoc te
+  const base64UrlString = bufferToBase64Url(hashBuffer);
+
+  // Lay substring theo do dai 7-10 ky tu
+  // Khi retry, dich chuyen offset de lay phan hash tiep theo
+  const offset = attempt * 2;
+  const start = offset % (base64UrlString.length - targetLength);
+
+  return base64UrlString.substring(start, start + targetLength);
+}
+
+/**
+ * Validate URL hop le (http/https, toi da 2048 ky tu)
  */
 export function isValidUrl(url: string): boolean {
+  if (!url || url.length > 2048) {
+    return false;
+  }
   try {
     const parsed = new URL(url);
     return parsed.protocol === "http:" || parsed.protocol === "https:";
@@ -46,9 +80,20 @@ export function isValidUrl(url: string): boolean {
 
 /**
  * Validate custom alias:
- *   - Chi cho phep a-z, A-Z, 0-9, hyphen (-), underscore (_)
- *   - Do dai 1-7 ky tu
+ *   - Chi cho phep a-z, A-Z, 0-9, hyphen (-), underscore (_) theo chuan Base64URL
+ *   - Do dai tu 1 den 10 ky tu
+ *   - Khong trung voi reserved aliases
  */
 export function isValidAlias(alias: string): boolean {
-  return /^[a-zA-Z0-9_-]{1,7}$/.test(alias);
+  if (!/^[a-zA-Z0-9_-]{1,10}$/.test(alias)) {
+    return false;
+  }
+  return !RESERVED_ALIASES.has(alias.toLowerCase());
+}
+
+/**
+ * Xoa dau slash o cuoi URL neu co (tranh double slash)
+ */
+export function sanitizeBaseUrl(url: string): string {
+  return url.replace(/\/+$/, "");
 }

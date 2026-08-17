@@ -1,23 +1,15 @@
-﻿"use client";
+"use client";
 
 /**
  * page.tsx - Trang chu URL Shortener
  *
- * Day la Client Component ("use client") vi can:
- *   - useState de quan ly form state, ket qua, danh sach link
- *   - Event handlers (onClick, onChange, onSubmit)
- *   - clipboard API (navigator.clipboard)
- *
- * Luong du lieu:
- *   User nhap URL -> POST /api/shorten -> hien thi ket qua
- *   Danh sach "recent links" luu trong React state (session-only)
- *   (Co the mo rong luu localStorage hoac query Supabase)
+ * Client Component xu ly form submit, cho phep chon do dai 7-10 ky tu,
+ * custom alias, copy clipboard va danh sach link gan day.
  */
 
 import { useState, useCallback } from "react";
-import type { LinkRow } from "@/types/database";
+import { sanitizeBaseUrl } from "@/lib/utils";
 
-// Type cho response tu POST /api/shorten
 interface ShortenResult {
   short_code: string;
   short_url: string;
@@ -30,16 +22,17 @@ export default function HomePage() {
   const [url, setUrl] = useState("");
   const [alias, setAlias] = useState("");
   const [showAlias, setShowAlias] = useState(false);
+  const [length, setLength] = useState<number>(7);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<ShortenResult | null>(null);
-  const [copied, setCopied] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
   const [recentLinks, setRecentLinks] = useState<ShortenResult[]>([]);
 
-  // Base URL hien thi (uu tien env var, fallback window.location)
-  const appUrl =
+  const rawAppUrl =
     process.env.NEXT_PUBLIC_APP_URL ||
-    (typeof window !== "undefined" ? window.location.origin : "");
+    (typeof window !== "undefined" ? window.location.origin : "http://localhost:3000");
+  const appUrl = sanitizeBaseUrl(rawAppUrl);
 
   // --- Handlers ---
   const handleSubmit = useCallback(
@@ -50,10 +43,12 @@ export default function HomePage() {
       setIsLoading(true);
       setError(null);
       setResult(null);
-      setCopied(false);
 
       try {
-        const body: Record<string, string> = { original_url: url.trim() };
+        const body: Record<string, unknown> = {
+          original_url: url.trim(),
+          length: Number(length) || 7,
+        };
         if (showAlias && alias.trim()) {
           body.alias = alias.trim();
         }
@@ -72,39 +67,39 @@ export default function HomePage() {
         }
 
         setResult(data);
-        // Them vao dau danh sach "recent links", giu toi da 10
-        setRecentLinks((prev) => [data, ...prev].slice(0, 10));
+        setRecentLinks((prev) => [
+          data,
+          ...prev.filter((item) => item.short_code !== data.short_code),
+        ].slice(0, 10));
         setUrl("");
         setAlias("");
         setShowAlias(false);
       } catch {
-        setError("Khong the ket noi den server. Kiem tra lai mang.");
+        setError("Khong the ket noi den server. Kiem tra lai ket noi mang.");
       } finally {
         setIsLoading(false);
       }
     },
-    [url, alias, showAlias, isLoading]
+    [url, alias, showAlias, length, isLoading]
   );
 
   const handleCopy = useCallback(async (textToCopy: string) => {
     try {
       await navigator.clipboard.writeText(textToCopy);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedUrl(textToCopy);
+      setTimeout(() => setCopiedUrl((curr) => (curr === textToCopy ? null : curr)), 2000);
     } catch {
-      // Fallback cho moi truong khong ho tro clipboard API
       const el = document.createElement("textarea");
       el.value = textToCopy;
       document.body.appendChild(el);
       el.select();
       document.execCommand("copy");
       document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopiedUrl(textToCopy);
+      setTimeout(() => setCopiedUrl((curr) => (curr === textToCopy ? null : curr)), 2000);
     }
   }, []);
 
-  // --- Render ---
   return (
     <div className="page-container">
       <main className="main-content">
@@ -115,7 +110,7 @@ export default function HomePage() {
             <span className="logo-text">SnapLink</span>
           </div>
           <p className="header-subtitle">
-            Rut gon URL nhanh chong · Theo doi luot click · Mien phi
+            Rut gon URL chuan SHA-256 + Base64URL · Toc do cao · Mien phi
           </p>
         </header>
 
@@ -160,18 +155,46 @@ export default function HomePage() {
                 </button>
               </div>
 
-              {/* Optional alias */}
-              <label className="toggle-label">
-                <input
-                  type="checkbox"
-                  className="toggle-checkbox"
-                  checked={showAlias}
-                  onChange={(e) => setShowAlias(e.target.checked)}
-                  disabled={isLoading}
-                  id="alias-toggle"
-                />
-                Tuy chinh alias (tuy chon)
-              </label>
+              {/* Tuy chon do dai va alias */}
+              <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap", alignItems: "center", marginTop: "0.25rem" }}>
+                <label className="toggle-label">
+                  <input
+                    type="checkbox"
+                    className="toggle-checkbox"
+                    checked={showAlias}
+                    onChange={(e) => setShowAlias(e.target.checked)}
+                    disabled={isLoading}
+                    id="alias-toggle"
+                  />
+                  Custom alias (1-10 ky tu)
+                </label>
+
+                {!showAlias && (
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", fontSize: "0.8125rem", color: "var(--color-text-secondary)" }}>
+                    <span>Do dai ma hash:</span>
+                    <select
+                      value={length}
+                      onChange={(e) => setLength(Number(e.target.value))}
+                      disabled={isLoading}
+                      style={{
+                        background: "var(--color-bg-input)",
+                        color: "var(--color-text-primary)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: "var(--radius-sm)",
+                        padding: "0.2rem 0.5rem",
+                        fontSize: "0.8125rem",
+                        outline: "none",
+                        cursor: "pointer",
+                      }}
+                    >
+                      <option value={7}>7 ky tu (chuan)</option>
+                      <option value={8}>8 ky tu</option>
+                      <option value={9}>9 ky tu</option>
+                      <option value={10}>10 ky tu</option>
+                    </select>
+                  </div>
+                )}
+              </div>
 
               {showAlias && (
                 <div className="alias-row">
@@ -182,12 +205,12 @@ export default function HomePage() {
                     className="input input-with-prefix input-alias"
                     placeholder="my-link"
                     value={alias}
-                    onChange={(e) => setAlias(e.target.value.slice(0, 7))}
+                    onChange={(e) => setAlias(e.target.value.slice(0, 10))}
                     disabled={isLoading}
-                    maxLength={7}
+                    maxLength={10}
                     spellCheck={false}
                     autoComplete="off"
-                    aria-label="Custom alias (toi da 7 ky tu)"
+                    aria-label="Custom alias (1 den 10 ky tu)"
                   />
                 </div>
               )}
@@ -202,10 +225,10 @@ export default function HomePage() {
             )}
           </form>
 
-          {/* Result */}
+          {/* Result Box */}
           {result && (
             <div className="result-box" style={{ marginTop: "1.25rem" }}>
-              <div className="result-label">✓ Link da duoc rut gon</div>
+              <div className="result-label">✓ Link da duoc rut gon (SHA-256 Base64URL)</div>
               <div className="result-url-row">
                 <a
                   href={result.short_url}
@@ -222,7 +245,7 @@ export default function HomePage() {
                   aria-label="Sao chep short URL"
                   id="copy-result-btn"
                 >
-                  {copied ? (
+                  {copiedUrl === result.short_url ? (
                     <span className="copy-success">✓ Da sao chep</span>
                   ) : (
                     <>📋 Sao chep</>
@@ -248,40 +271,43 @@ export default function HomePage() {
                 Tao trong phien nay
               </h2>
               <ul className="links-list">
-                {recentLinks.map((link) => (
-                  <li key={link.short_code} className="link-item">
-                    <div className="link-item-info">
-                      <a
-                        href={link.short_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="link-item-short"
-                      >
-                        {link.short_url}
-                      </a>
-                      <span
-                        className="link-item-original"
-                        title={link.original_url}
-                      >
-                        {link.original_url}
-                      </span>
-                    </div>
-                    <div className="link-item-meta">
-                      <span className="click-badge">
-                        👆 0 clicks
-                      </span>
-                      <button
-                        type="button"
-                        className="btn btn-ghost btn-icon"
-                        onClick={() => handleCopy(link.short_url)}
-                        aria-label={`Sao chep ${link.short_url}`}
-                        title="Sao chep"
-                      >
-                        📋
-                      </button>
-                    </div>
-                  </li>
-                ))}
+                {recentLinks.map((link) => {
+                  const isCopied = copiedUrl === link.short_url;
+                  return (
+                    <li key={link.short_code} className="link-item">
+                      <div className="link-item-info">
+                        <a
+                          href={link.short_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="link-item-short"
+                        >
+                          {link.short_url}
+                        </a>
+                        <span
+                          className="link-item-original"
+                          title={link.original_url}
+                        >
+                          {link.original_url}
+                        </span>
+                      </div>
+                      <div className="link-item-meta">
+                        <span className="click-badge">
+                          {link.short_code.length} chars
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-ghost btn-icon"
+                          onClick={() => handleCopy(link.short_url)}
+                          aria-label={`Sao chep ${link.short_url}`}
+                          title="Sao chep"
+                        >
+                          {isCopied ? "✓" : "📋"}
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
           </section>

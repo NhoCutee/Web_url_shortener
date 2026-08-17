@@ -1,9 +1,12 @@
-﻿import type { NextConfig } from "next";
+import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // output: "standalone" giup Docker image gon nhe hon khi build production
-  // Khi dev (docker-compose), ta dung dev server nen khong can option nay
-  // output: "standalone",
+  webpack: (config) => {
+    config.watchOptions = {
+      ignored: ["**/node_modules/**", "**/.git/**", "**/.bin/**", "**/.next/**"],
+    };
+    return config;
+  },
 };
 
 export default nextConfig;

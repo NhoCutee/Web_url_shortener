@@ -1,56 +1,38 @@
-﻿/**
+/**
  * supabase.ts - Supabase client factory
  *
  * Co 2 loai client:
  *   1. supabaseClient  - Dung o CLIENT component (browser), dung anon key
  *   2. supabaseServer  - Dung o API routes (server-side), dung service_role key
  *
- * Tai sao phan biet?
- *   - anon key: co Row Level Security (RLS) - an toan expose ra browser
- *   - service_role key: BYPASS tat ca RLS - chi dung tren server, TUYET DOI
- *     khong expose ra client-side (NEXT_PUBLIC_*)
+ * Luu y quan trong ve Next.js:
+ *   process.env.NEXT_PUBLIC_* phai duoc truy cap truc tiep (literal property access)
+ *   de Webpack/Turbopack inline gia tri vao client bundle khi build.
  */
 
 import { createClient } from "@supabase/supabase-js";
 import type { Database } from "@/types/database";
 
-// ----------------------------------------------------------------
-// Validate bien moi truong bat buoc
-// Neu thieu se throw loi ngay khi app khoi dong (fail fast)
-// ----------------------------------------------------------------
-function requireEnv(key: string): string {
-  const value = process.env[key];
-  if (!value) {
-    throw new Error(
-      `Missing required environment variable: ${key}\n` +
-        `Please check your .env.local file (see .env.example for reference).`
-    );
-  }
-  return value;
-}
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "http://host.docker.internal:54321";
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "";
 
-const supabaseUrl = requireEnv("NEXT_PUBLIC_SUPABASE_URL");
-const supabaseAnonKey = requireEnv("NEXT_PUBLIC_SUPABASE_ANON_KEY");
-
-// ----------------------------------------------------------------
 // Client-side Supabase client (dung anon key)
-// Singleton pattern: chi tao 1 instance cho toan bo app
-// ----------------------------------------------------------------
 export const supabaseClient = createClient<Database>(
   supabaseUrl,
   supabaseAnonKey
 );
 
-// ----------------------------------------------------------------
 // Server-side Supabase client (dung service_role key)
 // Chi goi function nay trong Server Components hoac API Routes
-// KHONG bao gio export sang client component
-// ----------------------------------------------------------------
 export function createServerSupabaseClient() {
-  const serviceRoleKey = requireEnv("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceRoleKey) {
+    throw new Error(
+      "Missing SUPABASE_SERVICE_ROLE_KEY environment variable. Please check your .env.local file."
+    );
+  }
   return createClient<Database>(supabaseUrl, serviceRoleKey, {
     auth: {
-      // Server client khong can persist session
       persistSession: false,
       autoRefreshToken: false,
     },

@@ -1,301 +1,237 @@
-﻿# SnapLink - URL Shortener
+# SnapLink — URL Shortener (SHA-256 + Base64URL RFC 4648)
 
-> Rut gon URL nhanh chong, theo doi luot click, chay 100% tren Docker khi dev.
-
----
-
-## Kien truc tong quan
-
-```
-+------------------------------------------+     +------------------------------------------+
-|          DEV (Local Docker)              |     |       PROD (Cloud)                       |
-|                                          |     |                                          |
-|  [Browser]                               |     |  [Browser]                               |
-|      |                                   |     |      |                                   |
-|      v                                   |     |      v                                   |
-|  localhost:3000                           |     |  vercel.app (Next.js Serverless)         |
-|  [Next.js Container - Docker]            |     |      |                                   |
-|      |                                   |     |      v                                   |
-|      | host.docker.internal:54321        |     |  Supabase Cloud                          |
-|      v                                   |     |  (Postgres managed + API + Auth)         |
-|  [Supabase Local Stack - Docker]         |     |                                          |
-|      |- API Gateway (Kong): 54321        |     +------------------------------------------+
-|      |- Postgres DB:        54322        |
-|      |- Supabase Studio UI: 54323        |
-|                                          |
-+------------------------------------------+
-
-Stack:
-  Frontend + Backend : Next.js 15 (App Router, TypeScript)
-  Database           : Supabase (Postgres)
-  Dev DB             : Supabase CLI (chay local qua Docker)
-  Prod               : Vercel + Supabase Cloud
-```
+> Web URL Shortener hiệu năng cao, xây dựng với **Next.js 15 (App Router, TypeScript)**, **Supabase Cloud (PostgreSQL)**, chạy **100% trong môi trường Docker**, sử dụng thuật toán băm chuẩn quốc tế **SHA-256 + Base64URL (7 - 10 ký tự)**.
 
 ---
 
-## Schema Database
+## 1. Kiến trúc tổng quan
+
+```
++───────────────────────────────────────────────────────────+
+|                  MÔI TRƯỜNG DEV (Local)                   |
+|                                                           |
+|  [Trình duyệt] ──► http://localhost:3000                  |
+|      │                                                    |
+|      ▼                                                    |
+|  [Next.js App Container - Docker]                         |
+|      │                                                    |
+|      │ HTTPS / TLS (Port 443)                             |
+|      ▼                                                    |
+|  [Supabase Cloud - Managed PostgreSQL]                    |
+|      ├── PostgreSQL Database (Bảng links)                 |
+|      ├── PostgREST API                                    |
+|      └── Supabase Cloud Dashboard                         |
++───────────────────────────────────────────────────────────+
+|               MÔI TRƯỜNG PRODUCTION (Vercel)              |
+|                                                           |
+|  [Trình duyệt] ──► https://<your-app>.vercel.app          |
+|      │                                                    |
+|      ▼                                                    |
+|  [Vercel Serverless / Edge Network]                       |
+|      │                                                    |
+|      │ HTTPS / TLS (Port 443)                             |
+|      ▼                                                    |
+|  [Supabase Cloud - Managed PostgreSQL]                    |
++───────────────────────────────────────────────────────────+
+
+Stack công nghệ:
+  Frontend & Backend : Next.js 15 (App Router, React 19, TypeScript)
+  Database           : Supabase (PostgreSQL managed)
+  Thuật toán         : SHA-256 + Base64URL (RFC 4648 §5, 7 - 10 ký tự)
+  Môi trường Dev     : Docker & Docker Compose
+  Production         : Vercel + Supabase Cloud
+```
+
+---
+
+## 2. Thuật toán tạo mã Short Code (SHA-256 + Base64URL)
+
+Hệ thống sử dụng quy trình băm và mã hóa chuẩn quốc tế theo **RFC 4648 §5**:
+
+```
+[Original URL: "https://google.com"]
+               │
+               ▼
+[SHA-256 Digest]    ──► 32 bytes nhị phân (256-bit entropy)
+               │
+               ▼
+[Base64URL Encode]  ──► 43 ký tự an toàn URL: "BQRvJsg-jIe8w6..."
+               │        (Tập ký tự: A-Z, a-z, 0-9, '-', '_')
+               ▼
+[Slice 7 - 10 chars]──► Short Code: "BQRvJsg" (7 chars) hoặc "BQRvJsg-jI" (10 chars)
+```
+
+### Điểm nổi bật của thuật toán:
+- **Chuẩn quốc tế (RFC 4648 §5)**: Tuyệt đối không chứa ký tự đặc biệt hay ký tự bị escape `%20`, `%2B`, an toàn tuyệt đối trên mọi trình duyệt.
+- **Khử trùng lặp (Deduplication / Idempotent)**: Cùng 1 URL khi rút gọn nhiều lần sẽ cho ra cùng short code $\rightarrow$ tự động tái sử dụng, tối ưu dung lượng DB.
+- **Xử lý va chạm thông minh (Collision Resolution)**: Nếu 2 URL khác nhau trùng tiền tố hash, thuật toán tự động trượt offset cửa sổ băm (`offset = attempt * 2`) và thêm salt để sinh mã mới.
+
+---
+
+## 3. Schema Database (PostgreSQL)
 
 ```sql
--- Bang chinh: links
-CREATE TABLE links (
+-- Kích hoạt extension pgcrypto
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
+-- Tạo bảng links
+CREATE TABLE IF NOT EXISTS links (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  short_code   VARCHAR(7) NOT NULL UNIQUE,  -- 7 ky tu base62, ~3.5 ty combination
-  original_url TEXT NOT NULL,               -- URL goc day du
+  short_code   VARCHAR(10) NOT NULL,        -- 7 đến 10 ký tự Base64URL
+  original_url TEXT NOT NULL,               -- URL gốc đầy đủ
   created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  click_count  INTEGER NOT NULL DEFAULT 0   -- tang moi khi redirect
+  click_count  INTEGER NOT NULL DEFAULT 0,  -- Số lần redirect
+  CONSTRAINT links_short_code_unique UNIQUE (short_code)
 );
 
--- Indexes
-CREATE INDEX idx_links_short_code ON links (short_code);  -- hot path redirect
-CREATE INDEX idx_links_created_at ON links (created_at DESC);  -- recent links query
+-- Indexes tối ưu hiệu năng
+CREATE INDEX IF NOT EXISTS idx_links_short_code ON links (short_code);   -- Hot path redirect
+CREATE INDEX IF NOT EXISTS idx_links_created_at ON links (created_at DESC); -- Link gần đây
+
+-- Cấp quyền truy cập cho Supabase API
+GRANT ALL ON TABLE links TO postgres, anon, authenticated, service_role;
 ```
 
 ---
 
-## Cau truc thu muc
+## 4. Cấu trúc thư mục dự án
 
 ```
 url-shortener/
-├── supabase/
-│   ├── config.toml              # Cau hinh Supabase local
-│   └── migrations/
-│       └── 20240101000000_create_links_table.sql
 ├── src/
 │   ├── app/
-│   │   ├── layout.tsx           # Root layout
-│   │   ├── page.tsx             # Trang chu (UI chinh)
-│   │   ├── globals.css          # Design system CSS
+│   │   ├── layout.tsx             # Root layout + Google Fonts (Inter, JetBrains Mono)
+│   │   ├── page.tsx               # Giao diện chính (Client Component)
+│   │   ├── globals.css            # Design system CSS
 │   │   ├── [shortCode]/
-│   │   │   └── route.ts         # GET /:shortCode -> redirect
+│   │   │   └── route.ts           # Route chuyển hướng (GET /:shortCode -> 302 Redirect)
 │   │   ├── api/shorten/
-│   │   │   └── route.ts         # POST /api/shorten
+│   │   │   └── route.ts           # API rút gọn URL (POST /api/shorten)
 │   │   └── not-found/
-│   │       └── page.tsx         # Trang 404
+│   │       └── page.tsx           # Giao diện 404 thân thiện
 │   ├── lib/
-│   │   ├── supabase.ts          # Supabase client (client + server)
-│   │   └── utils.ts             # generateShortCode, isValidUrl, ...
+│   │   ├── supabase.ts            # Supabase client (Client & Server factory)
+│   │   └── utils.ts               # Hàm băm SHA-256, Base64URL, validation URL
 │   └── types/
-│       └── database.ts          # TypeScript types cho Supabase schema
-├── Dockerfile                   # Next.js Docker image
-├── docker-compose.yml           # Dev stack
-├── .env.local                   # Bien moi truong dev (KHONG commit)
-├── .env.example                 # Template bien moi truong
-├── package.json
-└── tsconfig.json
+│       └── database.ts            # TypeScript definitions cho database
+├── supabase/
+│   └── migrations/
+│       └── 20240101000000_create_links_table.sql # Migration SQL
+├── Dockerfile                     # Dockerfile Next.js (Node 22 Alpine)
+├── docker-compose.yml             # Cấu hình Docker dev container
+├── .env.local                     # Biến môi trường (KHÔNG commit lên Git)
+├── .env.example                   # Template biến môi trường
+├── business_flow.md               # Tài liệu chi tiết luồng nghiệp vụ
+└── README.md                      # Hướng dẫn dự án
 ```
 
 ---
 
-## Huong dan Setup Local (tu dau)
+## 5. Hướng dẫn cài đặt & Chạy Local
 
-### Yeu cau
-- Docker Desktop da cai va dang chay
-- Git
+### Yêu cầu tiên quyết
+- **Docker Desktop** đã được cài đặt và đang chạy.
+- Tài khoản miễn phí tại [supabase.com](https://supabase.com).
 
-### Buoc 1: Clone project
+### Bước 1: Chuẩn bị Database trên Supabase Cloud (Mất 1 phút)
+1. Đăng nhập vào [supabase.com/dashboard](https://supabase.com/dashboard) và tạo 1 Project mới.
+2. Vào mục **SQL Editor** ở thanh menu bên trái ➡️ Bấm **New query**.
+3. Dán đoạn mã SQL ở **Mục 3 (Schema Database)** vào và bấm **Run**.
 
-```bash
-git clone <repo-url>
-cd url-shortener
-```
-
-### Buoc 2: Cai Supabase CLI va khoi dong Supabase local
-
-**Cach 1: Dung npx (KHONG can cai global, khuyen dung)**
-
-```bash
-# Kiem tra phien ban
-npx supabase --version
-
-# Khoi tao (neu chua co supabase/config.toml)
-npx supabase init
-
-# Khoi dong toan bo Supabase stack tren Docker
-npx supabase start
-```
-
-**Cach 2: Dung Docker truc tiep (neu khong co npx)**
-
-```bash
-docker run --rm -v //var/run/docker.sock:/var/run/docker.sock \
-  -v $(pwd):/workdir \
-  supabase/cli:latest supabase start
-```
-
-**Cac port duoc expose khi Supabase start:**
-
-| Port  | Service              | Dung de                                    |
-|-------|----------------------|--------------------------------------------|
-| 54321 | API Gateway (Kong)   | NEXT_PUBLIC_SUPABASE_URL trong .env.local  |
-| 54322 | Postgres DB          | Ket noi DB truc tiep (psql, DBeaver, ...)  |
-| 54323 | Supabase Studio      | GUI quan ly DB (mo browser: localhost:54323) |
-| 54324 | Inbucket (email)     | Test email auth local                      |
-
-Sau khi start, chay `npx supabase status` de xem cac key:
-
-```
-         API URL: http://127.0.0.1:54321
-     GraphQL URL: http://127.0.0.1:54321/graphql/v1
-  S3 Storage URL: http://127.0.0.1:54321/storage/v1/s3
-          DB URL: postgresql://postgres:postgres@127.0.0.1:54322/postgres
-      Studio URL: http://127.0.0.1:54323         <-- Mo cai nay trong browser
-    Inbucket URL: http://127.0.0.1:54324
-        anon key: eyJhbGc...  <-- NEXT_PUBLIC_SUPABASE_ANON_KEY
-service_role key: eyJhbGc...  <-- SUPABASE_SERVICE_ROLE_KEY
-```
-
-### Buoc 3: Chay migration
-
-```bash
-# Ap dung tat ca migration files len Supabase local
-npx supabase db reset
-
-# Hoac chi ap migration moi (khong reset data)
-npx supabase migration up
-```
-
-### Buoc 4: Cau hinh bien moi truong
-
-Sao chep file template:
-```bash
-copy .env.example .env.local   # Windows
-cp .env.example .env.local     # Mac/Linux
-```
-
-Chinh sua `.env.local` voi gia tri lay tu `npx supabase status`:
+### Bước 2: Cấu hình biến môi trường
+1. Vào **Project Settings ⚙️** (góc dưới bên trái) ➡️ **API**.
+2. Copy **Project URL**, **anon key** và **service_role key**.
+3. Tạo/chỉnh sửa file `.env.local` tại thư mục gốc của dự án:
 
 ```env
-# Quan trong: tu DOCKER CONTAINER goi Supabase, phai dung host.docker.internal
-# khong phai localhost (localhost trong container tro den chinh container do)
-NEXT_PUBLIC_SUPABASE_URL=http://host.docker.internal:54321
-
-NEXT_PUBLIC_SUPABASE_ANON_KEY=<anon key tu supabase status>
-SUPABASE_SERVICE_ROLE_KEY=<service_role key tu supabase status>
+NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxxxxxx.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=eyJhbGciOi...
+SUPABASE_SERVICE_ROLE_KEY=eyJhbGciOi...
 NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
-### Buoc 5: Build va chay Next.js container
+### Bước 3: Khởi động ứng dụng qua Docker
+Mở PowerShell tại thư mục dự án và chạy:
 
-```bash
-# Lan dau (hoac khi thay doi Dockerfile/package.json)
-docker compose up --build
+```powershell
+# Build image và khởi chạy container
+docker compose up -d --build
+```
 
-# Lan sau (khong can build lai)
-docker compose up
+Mở trình duyệt: **http://localhost:3000** để sử dụng ứng dụng!
 
-# Chay background
+---
+
+## 6. Hướng dẫn Deploy lên Vercel
+
+### Bước 1: Đẩy mã nguồn lên GitHub
+```powershell
+git init
+git add .
+git commit -m "feat: url shortener with sha256 base64url"
+git remote add origin https://github.com/<username>/<repo-name>.git
+git push -u origin main
+```
+
+### Bước 2: Import vào Vercel
+1. Truy cập [vercel.com/new](https://vercel.com/new) và chọn repository của bạn.
+2. Framework Preset: **Next.js** (tự động nhận diện).
+3. Tại phần **Environment Variables**, thêm 4 biến môi trường từ Supabase Cloud:
+
+| Key | Value | Môi trường |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://xxxxxxxxxxxxxxxx.supabase.co` | Production |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | `eyJhbGciOi...` (anon key) | Production |
+| `SUPABASE_SERVICE_ROLE_KEY` | `eyJhbGciOi...` (service_role - đánh dấu Sensitive) | Production |
+| `NEXT_PUBLIC_APP_URL` | `https://<ten-ung-dung>.vercel.app` | Production |
+
+4. Bấm **Deploy**. Vercel sẽ tự động build và cung cấp domain production miễn phí!
+
+---
+
+## 7. Các lệnh Docker hữu ích
+
+```powershell
+# Khởi động app
 docker compose up -d
 
-# Xem log real-time
+# Xem logs real-time
 docker compose logs -f nextjs
 
-# Vao shell ben trong container de debug
-docker compose exec nextjs sh
+# Restart app sau khi đổi .env.local
+docker compose restart nextjs
 
-# Dung lai
+# Dừng app
 docker compose down
 ```
 
-Mo browser: **http://localhost:3000**
-
 ---
 
-## Tao Supabase Cloud Project va Migrate Schema
+## 8. API Documentation
 
-1. Dang ky tai https://supabase.com
-2. Tao project moi (chon region gan nhat)
-3. Sau khi project ready, vao **Project Settings > API** de lay:
-   - `Project URL` → dung lam `NEXT_PUBLIC_SUPABASE_URL`
-   - `anon public` key → `NEXT_PUBLIC_SUPABASE_ANON_KEY`
-   - `service_role` key → `SUPABASE_SERVICE_ROLE_KEY`
+### `POST /api/shorten` — Tạo Short URL
 
-4. Ap dung schema len cloud:
-   ```bash
-   # Link CLI voi cloud project
-   npx supabase link --project-ref <project-ref-tu-dashboard>
-
-   # Push tat ca migrations len cloud
-   npx supabase db push
-   ```
-
-5. Hoac copy-paste noi dung `supabase/migrations/20240101000000_create_links_table.sql`
-   vao **SQL Editor** tren Supabase Dashboard va bam Run.
-
----
-
-## Deploy Vercel
-
-### Buoc 1: Push code len GitHub
-
-```bash
-git add .
-git commit -m "feat: initial url shortener"
-git push origin main
+**Request Body:**
+```json
+{
+  "original_url": "https://example.com/very/long/path",
+  "length": 7,       // Tùy chọn: 7, 8, 9 hoặc 10 (mặc định 7)
+  "alias": "my-link" // Tùy chọn: Custom alias (1-10 ký tự)
+}
 ```
 
-### Buoc 2: Import project tren Vercel
-
-1. Vao https://vercel.com/new
-2. Import tu GitHub repository
-3. Framework Preset: **Next.js** (tu dong detect)
-4. Giu cai dat mac dinh, bam **Deploy**
-
-### Buoc 3: Set Environment Variables tren Vercel
-
-Vao **Project Settings > Environment Variables**, them 4 bien:
-
-| Key                           | Value                             | Environment  |
-|-------------------------------|-----------------------------------|--------------|
-| NEXT_PUBLIC_SUPABASE_URL      | https://<project-ref>.supabase.co | Production   |
-| NEXT_PUBLIC_SUPABASE_ANON_KEY | <anon key tu Supabase cloud>      | Production   |
-| SUPABASE_SERVICE_ROLE_KEY     | <service_role key - PRIVATE>      | Production   |
-| NEXT_PUBLIC_APP_URL           | https://<your-app>.vercel.app     | Production   |
-
-> [!IMPORTANT]
-> `SUPABASE_SERVICE_ROLE_KEY` phai duoc set la **Sensitive** (encrypt) tren Vercel.
-> Tuyet doi khong commit key nay vao git.
-
-### Buoc 4: Redeploy
-
-Sau khi set env vars, bam **Redeploy** de ap dung.
-
----
-
-## Lenh tham khao nhanh
-
-```bash
-# Supabase
-npx supabase start              # Khoi dong Supabase local
-npx supabase stop               # Dung Supabase (giu data)
-npx supabase stop --backup      # Dung va backup data
-npx supabase status             # Xem URL + API keys
-npx supabase db reset           # Reset DB + chay lai tat ca migrations
-npx supabase migration new <name>  # Tao migration file moi
-npx supabase gen-types typescript --local > src/types/database.ts  # Sinh types tu schema
-
-# Docker / Next.js
-docker compose up --build       # Build va chay
-docker compose up -d            # Chay background
-docker compose logs -f nextjs   # Xem log
-docker compose exec nextjs sh   # Vao shell container
-docker compose down             # Dung tat ca containers
-docker compose down -v          # Dung + xoa volumes (mat build cache)
+**Response `201 Created`:**
+```json
+{
+  "short_code": "BQRvJsg",
+  "short_url": "http://localhost:3000/BQRvJsg",
+  "original_url": "https://example.com/very/long/path",
+  "created_at": "2026-08-17T04:57:09.633Z"
+}
 ```
 
 ---
 
-## FAQ
+## 9. License
 
-**Q: `supabase start` bao loi "Docker is not running"?**
-> Mo Docker Desktop truoc, doi cho bieu tuong Docker tren taskbar doi mau (dang chay), roi thu lai.
-
-**Q: Next.js container khong ket noi duoc Supabase?**
-> Kiem tra `.env.local`: phai dung `host.docker.internal:54321`, khong phai `localhost:54321`.
-> Tren Linux: them `extra_hosts: ["host.docker.internal:host-gateway"]` vao docker-compose.yml.
-
-**Q: Thay doi code khong thay refresh?**
-> Docker volume mount dang hoat dong. Thu refresh tay hoac kiem tra Next.js Fast Refresh cai console.
-
-**Q: Muon xem du lieu trong DB?**
-> Mo http://localhost:54323 (Supabase Studio) -> chon bang `links` -> xem/sua du lieu truc tiep.
+Dự án được phân phối dưới giấy phép **MIT**.

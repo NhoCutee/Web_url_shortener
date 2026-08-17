@@ -1,57 +1,23 @@
-﻿# ================================================================
-# docker-compose.yml - Next.js dev environment
-#
-# Chay lenh: docker compose up --build
-#
-# Luu y quan trong ve network voi Supabase local:
-# - Supabase CLI (supabase start) tao ra Docker network RIENG cua no,
-#   ten thuong la "supabase_network_<project-name>"
-# - Next.js container cua chung ta KHONG nam trong network do
-# - Giai phap: dung host.docker.internal de Next.js goi Supabase API
-#   (Windows/Mac: tu dong co san | Linux: them extra_hosts ben duoi)
-# ================================================================
-
 services:
   nextjs:
-    # Build tu Dockerfile trong thu muc hien tai
     build:
       context: .
       dockerfile: Dockerfile
-
-    # Ten container de de nhan bien
     container_name: url-shortener-nextjs
-
-    # Map port 3000 cua container ra host
     ports:
       - "3000:3000"
-
-    # Mount source code vao container -> hot-reload hoat dong
-    # Moi khi ban sua code tren host, Next.js ben trong container tu refresh
     volumes:
-      # Mount toan bo source code (tru node_modules - xem truong hop duoi)
       - .:/app
-      # QUAN TRONG: dung "anonymous volume" de node_modules cua container
-      # khong bi ghi de boi thu muc node_modules tren host (co the khac nhau)
       - /app/node_modules
-      # Mount .next build cache de khong bi mat khi restart
       - nextjs_cache:/app/.next
-
-    # Nap bien moi truong tu file .env.local
     env_file:
       - .env.local
-
-    # Them bien moi truong bo sung
     environment:
       - NODE_ENV=development
-
-    # Restart tu dong neu container crash
+      - NODE_OPTIONS=--max-old-space-size=2048
     restart: unless-stopped
-
-    # extra_hosts: Them dong nay neu ban dung Linux (host.docker.internal khong tu dong co)
-    # Linux users: bo comment dong ben duoi
     # extra_hosts:
     #   - "host.docker.internal:host-gateway"
 
-# Named volume de luu .next build cache giua cac lan restart
 volumes:
   nextjs_cache:
