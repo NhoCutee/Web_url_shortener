@@ -7,7 +7,6 @@
  */
 
 import { useState, useEffect, useCallback } from "react";
-import { sanitizeBaseUrl } from "@/lib/utils";
 
 interface ShortenResult {
   short_code: string;

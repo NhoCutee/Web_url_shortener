@@ -2,6 +2,7 @@
  * utils.ts - Cac ham tien ich:
  * - Chuan hoa & URL-Encode theo tieu chuan quoc te (RFC 3986 / WHATWG URL Standard)
  * - Ma hoa SHA-256 & Base64URL theo tieu chuan RFC 4648 §5
+ * - Mo rong do dai linh hoat (7 -> 8 -> 9 -> 10 ky tu) khi xu ly Collision
  */
 
 import { createHash } from "crypto";
@@ -74,7 +75,7 @@ export function normalizeAndEncodeUrl(rawUrl: string): string {
 }
 
 /**
- * Chuyen buffer sang chuoi Base64URL theo tieu chuan RFC 4648 §5
+ * Chuyen buffer sang chuoi Base64URL theo tieu chuan RFC 4648 §5 (43 ky tu)
  * - Thay '+' bang '-'
  * - Thay '/' bang '_'
  * - Xoa padding '=' o cuoi
@@ -88,42 +89,43 @@ export function bufferToBase64Url(buffer: Buffer): string {
 }
 
 /**
- * Sinh short code tu URL goc bang thuat toan SHA-256 + Base64URL (RFC 4648)
+ * Sinh short code tu chuoi hash SHA-256 (Base64URL 43 ky tu):
+ * 
+ * Thuat toan mo rong thong minh:
+ * - attempt 0: Lay 7 ky tu dau tien tu chuoi hash (0..7)
+ * - attempt 1: Neu trung, lay mo rong them ky tu thu 8 (0..8)
+ * - attempt 2: Neu trung, lay mo rong them ky tu thu 9 (0..9)
+ * - attempt 3: Neu trung, lay mo rong them ky tu thu 10 (0..10)
+ * - attempt >= 4: Truot cua so hash hoac them salt cho den khi hoan toan het trung
  * 
  * @param url URL da duoc chuan hoa va URL-encoded
- * @param length Do dai short code (tu 7 den 10 ky tu, mac dinh 7)
- * @param attempt So lan thu lai khi co collision (de truot cua so hash)
+ * @param initialLength Do dai short code ban dau (tu 7 den 10 ky tu, mac dinh 7)
+ * @param attempt So lan thu lai khi co collision (de mo rong va truot cua so hash)
  */
 export function generateHashShortCode(
   url: string,
-  length: number = 7,
+  initialLength: number = 7,
   attempt: number = 0
 ): string {
-  const targetLength = Math.min(Math.max(length, 7), 10);
+  const baseLength = Math.min(Math.max(initialLength, 7), 10);
+  
+  // Tinh do dai mo rong: 7 -> 8 -> 9 -> 10 ky tu
+  const targetLength = Math.min(baseLength + attempt, 10);
 
-  // Tao hash SHA-256 tu URL (them salt o cac lan retry collision)
-  const input = attempt === 0 ? url : `${url}#salt_${attempt}`;
+  // So buoc mo rong truoc khi can truot cua so / them salt (vi du: 10 - 7 = 3 buoc cho attempt 0, 1, 2, 3)
+  const expansionSteps = 10 - baseLength;
+
+  const saltCount = attempt > expansionSteps ? attempt - expansionSteps : 0;
+  const input = saltCount === 0 ? url : `${url}#salt_${saltCount}`;
+
+  // Tao hash SHA-256 tu input
   const hashBuffer = createHash("sha256").update(input, "utf8").digest();
-
-  // Encode sang Base64URL chuan quoc te
   const base64UrlString = bufferToBase64Url(hashBuffer);
 
-  // Lay substring theo do dai 7-10 ky tu
-  const offset = attempt * 2;
-  const start = offset % (base64UrlString.length - targetLength);
+  // Neu da vuot qua do dai 10 ma van trung -> truot cua so doc theo 43 ky tu cua hash
+  const offset = attempt > expansionSteps ? (saltCount * 2) % (base64UrlString.length - targetLength) : 0;
 
-  return base64UrlString.substring(start, start + targetLength);
-}
-
-/**
- * Validate URL hop le
- */
-export function isValidUrl(url: string): boolean {
-  if (!url || url.length > 2048) {
-    return false;
-  }
-  const normalized = normalizeAndEncodeUrl(url);
-  return Boolean(normalized);
+  return base64UrlString.substring(offset, offset + targetLength);
 }
 
 /**

@@ -15,7 +15,7 @@ import {
   RESERVED_ALIASES,
 } from "@/lib/utils";
 
-const MAX_RETRIES = 5;
+const MAX_RETRIES = 10;
 
 /**
  * Helper: Tu dong nhan dien Base URL tu Request Headers cua Vercel hoac Localhost

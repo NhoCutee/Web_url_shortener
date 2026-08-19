@@ -143,7 +143,7 @@ Nhận Request
              │    ├─ Tồn tại & CÙNG normalizedUrl:
              │    │    └──► [Deduplication] Trả về link đã có sẵn (201) ✅
              │    ├─ Tồn tại & KHÁC normalizedUrl (Collision):
-             │    │    └──► Trượt offset hash (+2) & thêm salt → thử lại vòng lặp 🔄
+             │    │    └──► Mở rộng độ dài (7 -> 8 -> 9 -> 10 chars) từ cùng chuỗi hash 43 chars & thêm salt → thử lại vòng lặp 🔄
              │    └─ Chưa tồn tại:
              │         └──► INSERT vào DB → Trả về kết quả mới (201) ✅
              └─ Sau 5 lần vẫn trùng → 500 "Không thể tạo short code"

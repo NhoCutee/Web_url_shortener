@@ -1,11 +1,3 @@
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[];
-
 export interface Database {
   public: {
     Tables: {
@@ -37,6 +29,3 @@ export interface Database {
     CompositeTypes: Record<string, never>;
   };
 }
-
-export type LinkRow = Database["public"]["Tables"]["links"]["Row"];
-export type LinkInsert = Database["public"]["Tables"]["links"]["Insert"];
