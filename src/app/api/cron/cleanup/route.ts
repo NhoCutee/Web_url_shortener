@@ -3,23 +3,26 @@ import { NextRequest, NextResponse } from 'next/server';
 
 // API Route: GET /api/cron/cleanup
 // Muc dich: Tu dong xoa cac link da tao hon 15 ngay truoc
-// Bao mat: Xac thuc qua CRON_SECRET trong header hoac query param
+// Bao mat: Xac thuc qua API_KEY (dung chung voi POST /api/shorten)
 
 export async function GET(request: NextRequest) {
-  // --- Xac thuc CRON_SECRET ---
-  const cronSecret = process.env.CRON_SECRET;
+  // --- Xac thuc API_KEY ---
+  const requiredApiKey = process.env.API_KEY;
 
-  if (cronSecret) {
-    // Lay key tu header "x-cron-secret" hoac query "?secret=..."
+  if (requiredApiKey) {
+    const headerKey = request.headers.get('x-api-key');
+    const authHeader = request.headers.get('authorization');
+    const bearerKey = authHeader?.startsWith('Bearer ')
+      ? authHeader.substring(7).trim()
+      : null;
     const { searchParams } = new URL(request.url);
-    const querySecret = searchParams.get('secret');
-    const headerSecret = request.headers.get('x-cron-secret');
+    const queryKey = searchParams.get('api_key');
 
-    const clientSecret = headerSecret || querySecret;
+    const clientKey = headerKey || bearerKey || queryKey;
 
-    if (!clientSecret || clientSecret !== cronSecret) {
+    if (!clientKey || clientKey !== requiredApiKey) {
       return NextResponse.json(
-        { error: 'Unauthorized: CRON_SECRET khong hop le hoac bi thieu' },
+        { error: 'Unauthorized: API Key khong hop le hoac bi thieu' },
         { status: 401 }
       );
     }
@@ -38,7 +41,6 @@ export async function GET(request: NextRequest) {
     .lt('created_at', fifteenDaysAgo)
     .select();
 
-  // Xu ly loi tu Supabase neu co
   if (error) {
     console.error('[Cron Cleanup] Loi khi xoa link cu:', error.message);
     return NextResponse.json(
