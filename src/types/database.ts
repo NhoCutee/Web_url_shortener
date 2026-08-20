@@ -1,31 +1,32 @@
-export interface Database {
-  public: {
-    Tables: {
-      links: {
-        Row: {
-          id: string;           // PRIMARY KEY VARCHAR(10) - Day chinh la short code (SHA256 Base64URL)
-          original_url: string; // TEXT
-          created_at: string;   // TIMESTAMPTZ
-          click_count: number;  // INTEGER
-        };
-        Insert: {
-          id: string;           // short code lam id
-          original_url: string;
-          created_at?: string;
-          click_count?: number;
-        };
-        Update: {
-          id?: string;
-          original_url?: string;
-          created_at?: string;
-          click_count?: number;
-        };
-        Relationships: [];
-      };
-    };
-    Views: Record<string, never>;
-    Functions: Record<string, never>;
-    Enums: Record<string, never>;
-    CompositeTypes: Record<string, never>;
-  };
+/**
+ * database.ts - Dinh nghia kieu du lieu cho bang `links` trong PostgreSQL
+ *
+ * Muc dich: Dung de TypeScript hieu cau truc du lieu khi query tu pg Pool,
+ * giup code an toan kieu (type-safe) ma khong can Supabase.
+ */
+
+/**
+ * Kieu du lieu cua 1 ban ghi trong bang `links`
+ * Tuong ung voi cac column trong PostgreSQL:
+ *   id           VARCHAR(10) PRIMARY KEY  -- Short code (SHA256 Base64URL)
+ *   original_url TEXT NOT NULL            -- URL goc can rut gon
+ *   click_count  INTEGER DEFAULT 0        -- So lan nguoi dung bam vao link
+ *   created_at   TIMESTAMPTZ DEFAULT NOW() -- Thoi diem tao link
+ */
+export interface Link {
+  id: string;
+  original_url: string;
+  click_count: number;
+  created_at: string;
+}
+
+/**
+ * Kieu du lieu khi INSERT ban ghi moi vao bang `links`
+ * created_at va click_count co gia tri mac dinh nen khong bat buoc
+ */
+export interface LinkInsert {
+  id: string;
+  original_url: string;
+  click_count?: number;
+  created_at?: string;
 }

@@ -1,9 +1,10 @@
-import { createServerSupabaseClient } from '@/lib/supabase';
 import { NextRequest, NextResponse } from 'next/server';
+import pool from '@/lib/db';
 
 // API Route: GET /api/cron/cleanup
 // Muc dich: Tu dong xoa cac link da tao hon 15 ngay truoc
 // Bao mat: Xac thuc qua API_KEY (dung chung voi POST /api/shorten)
+// Database: PostgreSQL (Docker) qua pg Pool
 
 export async function GET(request: NextRequest) {
   // --- Xac thuc API_KEY ---
@@ -28,31 +29,23 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  // Khoi tao Supabase client phia server
-  const supabase = createServerSupabaseClient();
+  try {
+    // Tinh moc thoi gian 15 ngay truoc va xoa
+    const result = await pool.query(
+      "DELETE FROM links WHERE created_at < NOW() - INTERVAL '15 days' RETURNING id"
+    );
 
-  // Tinh moc thoi gian 15 ngay truoc
-  const fifteenDaysAgo = new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString();
+    const deletedCount = result.rowCount ?? 0;
+    const timestamp = new Date().toISOString();
 
-  // Xoa cac link co created_at < NOW() - 15 days
-  const { data, error } = await supabase
-    .from('links')
-    .delete()
-    .lt('created_at', fifteenDaysAgo)
-    .select();
+    console.log(`[Cron Cleanup] Da xoa ${deletedCount} link cu luc ${timestamp}`);
+    return NextResponse.json({ deleted: deletedCount, timestamp }, { status: 200 });
 
-  if (error) {
-    console.error('[Cron Cleanup] Loi khi xoa link cu:', error.message);
+  } catch (err) {
+    console.error('[Cron Cleanup] Loi khi xoa link cu:', err);
     return NextResponse.json(
-      { error: 'Co loi xay ra khi xoa du lieu', detail: error.message },
+      { error: 'Co loi xay ra khi xoa du lieu' },
       { status: 500 }
     );
   }
-
-  const deletedCount = data?.length ?? 0;
-  const timestamp = new Date().toISOString();
-
-  console.log(`[Cron Cleanup] Da xoa ${deletedCount} link cu luc ${timestamp}`);
-
-  return NextResponse.json({ deleted: deletedCount, timestamp }, { status: 200 });
 }

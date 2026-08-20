@@ -4,10 +4,11 @@
  * Tao short link su dung SHA-256 + Base64URL (RFC 4648 §5).
  * Primary Key: `id` (VARCHAR(10)) chua ma short code truc tiep.
  * Bao mat: BAT BUOC xac thuc qua API_KEY (Header x-api-key, Authorization Bearer, hoac api_key trong body).
+ * Database: PostgreSQL (Docker) qua pg Pool.
  */
 
 import { NextRequest, NextResponse } from "next/server";
-import { createServerSupabaseClient } from "@/lib/supabase";
+import pool from "@/lib/db";
 import {
   normalizeAndEncodeUrl,
   generateHashShortCode,
@@ -69,7 +70,7 @@ export async function POST(request: NextRequest) {
     const bearerKey = authHeader?.startsWith("Bearer ")
       ? authHeader.substring(7).trim()
       : null;
-    
+
     const { searchParams } = new URL(request.url);
     const queryKey = searchParams.get("api_key");
 
@@ -110,15 +111,10 @@ export async function POST(request: NextRequest) {
     const normalizedUrl = normalizeAndEncodeUrl(original_url);
     if (!normalizedUrl || normalizedUrl.length > 2048) {
       return NextResponse.json(
-        {
-          error:
-            "URL khong hop le. Vui long nhap dung dinh dang (vi du: https://example.com/path)",
-        },
+        { error: "URL khong hop le. Vui long nhap dung dinh dang (vi du: https://example.com/path)" },
         { status: 400 }
       );
     }
-
-    const supabase = createServerSupabaseClient();
 
     // --- 3. Truong hop nguoi dung chi dinh Custom Alias ---
     if (alias !== undefined && alias !== "") {
@@ -133,23 +129,20 @@ export async function POST(request: NextRequest) {
 
       if (!isValidAlias(trimmedAlias)) {
         return NextResponse.json(
-          {
-            error: "Alias khong hop le. Chi duoc dung a-z, A-Z, 0-9, -, _ va do dai tu 1 den 10 ky tu",
-          },
+          { error: "Alias khong hop le. Chi duoc dung a-z, A-Z, 0-9, -, _ va do dai tu 1 den 10 ky tu" },
           { status: 400 }
         );
       }
 
       // Kiem tra alias da ton tai chua theo Primary Key `id`
-      const { data: existing } = await supabase
-        .from("links")
-        .select("id, original_url, created_at")
-        .eq("id", trimmedAlias)
-        .maybeSingle();
+      const existing = await pool.query(
+        "SELECT id, original_url, created_at FROM links WHERE id = $1",
+        [trimmedAlias]
+      );
 
-      if (existing) {
-        if (existing.original_url === normalizedUrl) {
-          return buildSuccessResponse(trimmedAlias, normalizedUrl, request, existing.created_at);
+      if (existing.rows.length > 0) {
+        if (existing.rows[0].original_url === normalizedUrl) {
+          return buildSuccessResponse(trimmedAlias, normalizedUrl, request, existing.rows[0].created_at);
         }
         return NextResponse.json(
           { error: `Alias "${trimmedAlias}" da duoc su dung, vui long chon alias khac` },
@@ -158,14 +151,12 @@ export async function POST(request: NextRequest) {
       }
 
       // Insert alias moi voi id = trimmedAlias
-      const { data, error } = await supabase
-        .from("links")
-        .insert({ id: trimmedAlias, original_url: normalizedUrl })
-        .select("id, original_url, created_at")
-        .single();
-
-      if (error) throw error;
-      return buildSuccessResponse(data.id, data.original_url, request, data.created_at);
+      const inserted = await pool.query(
+        "INSERT INTO links (id, original_url) VALUES ($1, $2) RETURNING id, original_url, created_at",
+        [trimmedAlias, normalizedUrl]
+      );
+      const row = inserted.rows[0];
+      return buildSuccessResponse(row.id, row.original_url, request, row.created_at);
     }
 
     // --- 4. Sinh short code bang thuat toan SHA-256 + Base64URL ---
@@ -175,43 +166,33 @@ export async function POST(request: NextRequest) {
       const shortCodeId = generateHashShortCode(normalizedUrl, codeLength, attempt);
 
       // Kiem tra truc tiep tren Primary Key `id`
-      const { data: existing } = await supabase
-        .from("links")
-        .select("id, original_url, created_at")
-        .eq("id", shortCodeId)
-        .maybeSingle();
+      const existing = await pool.query(
+        "SELECT id, original_url, created_at FROM links WHERE id = $1",
+        [shortCodeId]
+      );
 
-      if (existing) {
-        if (existing.original_url === normalizedUrl) {
+      if (existing.rows.length > 0) {
+        if (existing.rows[0].original_url === normalizedUrl) {
           // Deduplication: Cung URL goc da tung duoc rut gon
-          return buildSuccessResponse(
-            existing.id,
-            existing.original_url,
-            request,
-            existing.created_at
-          );
+          return buildSuccessResponse(shortCodeId, normalizedUrl, request, existing.rows[0].created_at);
         }
         // Collision: Tiep tuc loop de truot cua so hash
         continue;
       }
 
       // Insert link moi vao DB voi id = shortCodeId
-      const { data, error } = await supabase
-        .from("links")
-        .insert({ id: shortCodeId, original_url: normalizedUrl })
-        .select("id, original_url, created_at")
-        .single();
-
-      if (!error && data) {
-        return buildSuccessResponse(data.id, data.original_url, request, data.created_at);
+      try {
+        const inserted = await pool.query(
+          "INSERT INTO links (id, original_url) VALUES ($1, $2) RETURNING id, original_url, created_at",
+          [shortCodeId, normalizedUrl]
+        );
+        const row = inserted.rows[0];
+        return buildSuccessResponse(row.id, row.original_url, request, row.created_at);
+      } catch (err: unknown) {
+        // Neu bi race condition trung unique key luc insert -> retry
+        if (err && typeof err === "object" && "code" in err && (err as { code: string }).code === "23505") continue;
+        throw err;
       }
-
-      // Neu bi race condition trung unique key luc insert -> retry
-      if (error && "code" in error && error.code === "23505") {
-        continue;
-      }
-
-      throw error;
     }
 
     return NextResponse.json(
@@ -237,7 +218,6 @@ function buildSuccessResponse(
   created_at?: string
 ) {
   const appUrl = getBaseUrl(request);
-
   return NextResponse.json(
     {
       id,
