@@ -1,0 +1,1766 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ZaloFlow AI — Automated Zalo Sales Bot for High-Growth Shops</title>
+  <meta name="description" content="Sell 24/7 with zero staff. Your automated Zalo bot takes orders, confirms purchases, and syncs inventory in real-time." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ==========================================================================
+       1. DESIGN TOKENS & CSS VARIABLES
+       ========================================================================== */
+    :root {
+      --bg-base: #070a14;
+      --bg-surface: #0a0f1e;
+      --bg-card: rgba(16, 24, 48, 0.7);
+      --bg-card-hover: rgba(22, 34, 68, 0.85);
+      --bg-glass: rgba(255, 255, 255, 0.03);
+      --border-subtle: rgba(255, 255, 255, 0.08);
+      --border-glow: rgba(0, 212, 255, 0.35);
+
+      --color-text-main: #f8fafc;
+      --color-text-muted: #94a3b8;
+      --color-text-dim: #64748b;
+
+      /* Primary Brand: Zalo Blue + Electric Cyan Glow */
+      --zalo-blue: #006af5;
+      --cyan-glow: #00d4ff;
+      --gradient-zalo: linear-gradient(135deg, #006af5 0%, #00d4ff 100%);
+      --gradient-surface: linear-gradient(180deg, rgba(16, 24, 48, 0.6) 0%, rgba(10, 15, 30, 0.95) 100%);
+
+      /* High-converting Action Accent */
+      --accent-green: #00e676;
+      --accent-green-hover: #00c853;
+      --accent-green-glow: rgba(0, 230, 118, 0.35);
+
+      --shadow-card: 0 12px 40px -10px rgba(0, 0, 0, 0.7);
+      --shadow-glow-blue: 0 0 50px -10px rgba(0, 106, 245, 0.35);
+      --shadow-glow-green: 0 0 40px -8px rgba(0, 230, 118, 0.4);
+
+      --font-sans: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      --font-mono: 'JetBrains Mono', monospace;
+
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-full: 9999px;
+      --container-max: 1200px;
+    }
+
+    /* ==========================================================================
+       2. BASE RESET & GLOBAL STYLES
+       ========================================================================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      scroll-behavior: smooth;
+      font-size: 16px;
+      background-color: var(--bg-base);
+    }
+
+    body {
+      font-family: var(--font-sans);
+      color: var(--color-text-main);
+      background-color: var(--bg-base);
+      line-height: 1.6;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+      background-image: 
+        radial-gradient(ellipse 80% 50% at 50% -10%, rgba(0, 106, 245, 0.15), transparent 70%),
+        radial-gradient(circle at 90% 40%, rgba(0, 212, 255, 0.06), transparent 50%),
+        radial-gradient(circle at 10% 80%, rgba(0, 230, 118, 0.05), transparent 45%);
+    }
+
+    a {
+      color: inherit;
+      text-decoration: none;
+    }
+
+    button {
+      font-family: inherit;
+      cursor: pointer;
+      border: none;
+      outline: none;
+    }
+
+    .container {
+      width: 100%;
+      max-width: var(--container-max);
+      margin: 0 auto;
+      padding: 0 1.5rem;
+    }
+
+    /* Gradient Background Mesh */
+    .bg-mesh {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      pointer-events: none;
+      z-index: 0;
+      background-size: 40px 40px;
+      background-image: 
+        linear-gradient(to right, rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+        linear-gradient(to bottom, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+      mask-image: radial-gradient(ellipse 60% 50% at 50% 30%, #000 70%, transparent 100%);
+      -webkit-mask-image: radial-gradient(ellipse 60% 50% at 50% 30%, #000 70%, transparent 100%);
+    }
+
+    /* Section Typography */
+    .section {
+      position: relative;
+      z-index: 1;
+      padding: 6.5rem 0;
+    }
+
+    .section-header {
+      text-align: center;
+      max-width: 680px;
+      margin: 0 auto 4rem;
+    }
+
+    .pill-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.35rem 1rem;
+      border-radius: var(--radius-full);
+      background: rgba(0, 106, 245, 0.12);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      color: var(--cyan-glow);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      margin-bottom: 1.25rem;
+      box-shadow: 0 0 20px rgba(0, 212, 255, 0.15);
+    }
+
+    .section-title {
+      font-size: clamp(2rem, 4vw, 2.75rem);
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      line-height: 1.2;
+      margin-bottom: 1rem;
+    }
+
+    .section-title .gradient-text {
+      background: var(--gradient-zalo);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .section-desc {
+      font-size: 1.125rem;
+      color: var(--color-text-muted);
+      line-height: 1.65;
+    }
+
+    /* ==========================================================================
+       3. NAVIGATION BAR
+       ========================================================================== */
+    .navbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 100;
+      padding: 1rem 0;
+      transition: all 0.3s ease;
+      background: rgba(7, 10, 20, 0.7);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .nav-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .nav-logo {
+      display: flex;
+      align-items: center;
+      gap: 0.65rem;
+      font-size: 1.35rem;
+      font-weight: 800;
+      letter-spacing: -0.02em;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: var(--gradient-zalo);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 0 20px rgba(0, 106, 245, 0.5);
+    }
+
+    .nav-links {
+      display: flex;
+      align-items: center;
+      gap: 2rem;
+      list-style: none;
+    }
+
+    .nav-links a {
+      font-size: 0.9375rem;
+      font-weight: 500;
+      color: var(--color-text-muted);
+      transition: color 0.2s ease;
+    }
+
+    .nav-links a:hover {
+      color: var(--color-text-main);
+    }
+
+    .nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 1rem;
+    }
+
+    /* ==========================================================================
+       4. BUTTONS & CTAS
+       ========================================================================== */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0.6rem;
+      font-weight: 600;
+      font-size: 0.9375rem;
+      padding: 0.75rem 1.5rem;
+      border-radius: var(--radius-md);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      white-space: nowrap;
+      position: relative;
+    }
+
+    .btn:active {
+      transform: scale(0.98);
+    }
+
+    .btn-green {
+      background: var(--accent-green);
+      color: #032b14;
+      font-weight: 700;
+      box-shadow: var(--shadow-glow-green);
+    }
+
+    .btn-green:hover {
+      background: var(--accent-green-hover);
+      box-shadow: 0 0 30px rgba(0, 230, 118, 0.6);
+      transform: translateY(-2px);
+    }
+
+    .btn-ghost {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--border-subtle);
+      color: var(--color-text-main);
+    }
+
+    .btn-ghost:hover {
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(255, 255, 255, 0.2);
+      transform: translateY(-2px);
+    }
+
+    .btn-lg {
+      padding: 0.95rem 2rem;
+      font-size: 1.05rem;
+      border-radius: var(--radius-md);
+    }
+
+    /* ==========================================================================
+       5. HERO SECTION
+       ========================================================================== */
+    .hero {
+      padding-top: 9.5rem;
+      padding-bottom: 5rem;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.15fr 0.95fr;
+      gap: 3.5rem;
+      align-items: center;
+    }
+
+    .hero-content {
+      max-width: 600px;
+    }
+
+    .hero-headline {
+      font-size: clamp(2.5rem, 5.2vw, 3.75rem);
+      font-weight: 800;
+      letter-spacing: -0.04em;
+      line-height: 1.12;
+      margin-bottom: 1.5rem;
+    }
+
+    .hero-sub {
+      font-size: 1.2rem;
+      color: var(--color-text-muted);
+      line-height: 1.65;
+      margin-bottom: 2.25rem;
+    }
+
+    .hero-cta-row {
+      display: flex;
+      align-items: center;
+      gap: 1.25rem;
+      margin-bottom: 3rem;
+      flex-wrap: wrap;
+    }
+
+    .hero-stats-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.5rem;
+      padding-top: 2rem;
+      border-top: 1px solid var(--border-subtle);
+    }
+
+    .stat-item h4 {
+      font-size: 1.75rem;
+      font-weight: 800;
+      color: var(--color-text-main);
+      letter-spacing: -0.02em;
+      font-family: var(--font-mono);
+    }
+
+    .stat-item h4 span.accent {
+      color: var(--cyan-glow);
+    }
+
+    .stat-item p {
+      font-size: 0.8125rem;
+      color: var(--color-text-dim);
+      font-weight: 500;
+      margin-top: 0.2rem;
+    }
+
+    /* Phone Mockup Frame */
+    .mockup-wrapper {
+      position: relative;
+      display: flex;
+      justify-content: center;
+    }
+
+    .phone-mockup {
+      width: 100%;
+      max-width: 380px;
+      background: #0d1326;
+      border-radius: 40px;
+      padding: 12px;
+      box-shadow: 
+        0 25px 60px -15px rgba(0, 0, 0, 0.9),
+        0 0 0 1px rgba(255, 255, 255, 0.1),
+        0 0 60px -10px rgba(0, 106, 245, 0.4);
+      position: relative;
+      animation: floatSlow 6s ease-in-out infinite;
+    }
+
+    @keyframes floatSlow {
+      0%, 100% { transform: translateY(0px); }
+      50% { transform: translateY(-12px); }
+    }
+
+    .phone-screen {
+      background: #080d1e;
+      border-radius: 30px;
+      overflow: hidden;
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      height: 520px;
+    }
+
+    .phone-header {
+      background: #0f172e;
+      padding: 12px 16px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+
+    .phone-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background: var(--gradient-zalo);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 0.85rem;
+      position: relative;
+    }
+
+    .phone-avatar::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 9px;
+      height: 9px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      border: 2px solid #0f172e;
+    }
+
+    .phone-header-info h5 {
+      font-size: 0.875rem;
+      font-weight: 600;
+    }
+
+    .phone-header-info span {
+      font-size: 0.7rem;
+      color: var(--accent-green);
+      display: block;
+    }
+
+    .phone-chat-body {
+      flex: 1;
+      padding: 14px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      font-size: 0.8125rem;
+    }
+
+    .chat-msg {
+      max-width: 85%;
+      padding: 10px 14px;
+      border-radius: 16px;
+      line-height: 1.45;
+      position: relative;
+      animation: msgPop 0.4s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+
+    @keyframes msgPop {
+      from { opacity: 0; transform: translateY(10px) scale(0.95); }
+      to { opacity: 1; transform: translateY(0) scale(1); }
+    }
+
+    .msg-user {
+      align-self: flex-end;
+      background: #006af5;
+      color: #fff;
+      border-bottom-right-radius: 4px;
+    }
+
+    .msg-bot {
+      align-self: flex-start;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      color: var(--color-text-main);
+      border-bottom-left-radius: 4px;
+    }
+
+    .product-card-msg {
+      background: #111a33;
+      border: 1px solid rgba(0, 212, 255, 0.25);
+      border-radius: 12px;
+      padding: 10px;
+      margin-top: 6px;
+    }
+
+    .product-card-msg .title {
+      font-weight: 700;
+      color: var(--cyan-glow);
+      font-size: 0.8rem;
+    }
+
+    .product-card-msg .price {
+      font-weight: 700;
+      color: var(--accent-green);
+      font-size: 0.9rem;
+      margin: 3px 0;
+    }
+
+    .invoice-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      background: rgba(0, 230, 118, 0.15);
+      color: var(--accent-green);
+      border: 1px solid rgba(0, 230, 118, 0.3);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      margin-top: 5px;
+    }
+
+    .typing-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 8px 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 14px;
+      width: fit-content;
+    }
+
+    .typing-dot {
+      width: 5px;
+      height: 5px;
+      background: var(--color-text-muted);
+      border-radius: 50%;
+      animation: typingBlink 1.4s infinite ease-in-out both;
+    }
+
+    .typing-dot:nth-child(1) { animation-delay: -0.32s; }
+    .typing-dot:nth-child(2) { animation-delay: -0.16s; }
+
+    @keyframes typingBlink {
+      0%, 80%, 100% { transform: scale(0); opacity: 0.4; }
+      40% { transform: scale(1); opacity: 1; }
+    }
+
+    /* ==========================================================================
+       6. SOCIAL PROOF MARQUEE
+       ========================================================================== */
+    .marquee-section {
+      padding: 2.5rem 0;
+      border-top: 1px solid var(--border-subtle);
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(10, 15, 30, 0.5);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .marquee-track {
+      display: flex;
+      gap: 2rem;
+      width: max-content;
+      animation: marqueeScroll 28s linear infinite;
+    }
+
+    .marquee-track:hover {
+      animation-play-state: paused;
+    }
+
+    @keyframes marqueeScroll {
+      from { transform: translateX(0); }
+      to { transform: translateX(-50%); }
+    }
+
+    .pill-item {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.65rem 1.5rem;
+      border-radius: var(--radius-full);
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      font-size: 0.9rem;
+      font-weight: 600;
+      color: var(--color-text-main);
+      white-space: nowrap;
+    }
+
+    .pill-item .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-green);
+      box-shadow: 0 0 10px var(--accent-green);
+    }
+
+    /* ==========================================================================
+       7. FEATURES GRID
+       ========================================================================== */
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.75rem;
+    }
+
+    .feature-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 2.25rem;
+      transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-6px);
+      border-color: rgba(0, 212, 255, 0.4);
+      box-shadow: var(--shadow-glow-blue);
+      background: var(--bg-card-hover);
+    }
+
+    .feature-icon-box {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: rgba(0, 106, 245, 0.15);
+      border: 1px solid rgba(0, 212, 255, 0.25);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 1.5rem;
+      color: var(--cyan-glow);
+      transition: all 0.3s ease;
+    }
+
+    .feature-card:hover .feature-icon-box {
+      background: var(--gradient-zalo);
+      color: #fff;
+      transform: scale(1.08);
+      box-shadow: 0 0 20px rgba(0, 106, 245, 0.6);
+    }
+
+    .feature-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.65rem;
+    }
+
+    .feature-card p {
+      font-size: 0.9375rem;
+      color: var(--color-text-muted);
+      line-height: 1.6;
+    }
+
+    /* ==========================================================================
+       8. HOW IT WORKS
+       ========================================================================== */
+    .steps-timeline {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+      position: relative;
+    }
+
+    .step-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem 2rem;
+      position: relative;
+    }
+
+    .step-number {
+      font-family: var(--font-mono);
+      font-size: 2.5rem;
+      font-weight: 800;
+      color: rgba(255, 255, 255, 0.08);
+      position: absolute;
+      top: 1.5rem;
+      right: 1.75rem;
+      line-height: 1;
+    }
+
+    .step-badge {
+      display: inline-block;
+      padding: 0.3rem 0.85rem;
+      border-radius: var(--radius-full);
+      background: rgba(0, 230, 118, 0.12);
+      color: var(--accent-green);
+      font-size: 0.75rem;
+      font-weight: 700;
+      margin-bottom: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .step-card h3 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      margin-bottom: 0.75rem;
+    }
+
+    .step-card p {
+      font-size: 0.9375rem;
+      color: var(--color-text-muted);
+      line-height: 1.6;
+    }
+
+    /* ==========================================================================
+       9. LIVE DEMO COMPARISON (Split View)
+       ========================================================================== */
+    .comparison-wrapper {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      margin-top: 1rem;
+    }
+
+    .comparison-box {
+      background: var(--bg-card);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      border: 1px solid var(--border-subtle);
+      position: relative;
+    }
+
+    .comparison-box.bad {
+      border-color: rgba(239, 68, 68, 0.25);
+      background: rgba(30, 15, 20, 0.4);
+    }
+
+    .comparison-box.good {
+      border-color: rgba(0, 230, 118, 0.35);
+      background: rgba(10, 30, 25, 0.4);
+      box-shadow: 0 0 50px -15px rgba(0, 230, 118, 0.2);
+    }
+
+    .comp-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 1.75rem;
+      padding-bottom: 1rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+
+    .comp-header h4 {
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+
+    .comp-tag {
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 0.25rem 0.75rem;
+      border-radius: var(--radius-full);
+      text-transform: uppercase;
+    }
+
+    .comp-tag.bad { background: rgba(239, 68, 68, 0.2); color: #f87171; }
+    .comp-tag.good { background: rgba(0, 230, 118, 0.2); color: var(--accent-green); }
+
+    .comp-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+
+    .comp-list li {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.85rem;
+      font-size: 0.95rem;
+      color: var(--color-text-muted);
+    }
+
+    .comp-list li strong {
+      color: var(--color-text-main);
+    }
+
+    .comp-icon {
+      flex-shrink: 0;
+      margin-top: 2px;
+    }
+
+    /* ==========================================================================
+       10. PRICING SECTION
+       ========================================================================== */
+    .pricing-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+      align-items: stretch;
+    }
+
+    .pricing-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 2.5rem 2rem;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.3s ease;
+      position: relative;
+    }
+
+    .pricing-card.featured {
+      background: linear-gradient(180deg, rgba(16, 32, 68, 0.9) 0%, rgba(10, 18, 38, 0.95) 100%);
+      border-color: var(--cyan-glow);
+      box-shadow: 0 0 50px -10px rgba(0, 106, 245, 0.4);
+      transform: scale(1.04);
+    }
+
+    .featured-badge {
+      position: absolute;
+      top: -14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: var(--gradient-zalo);
+      color: #fff;
+      font-size: 0.75rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      padding: 0.3rem 1rem;
+      border-radius: var(--radius-full);
+      box-shadow: 0 0 20px rgba(0, 106, 245, 0.6);
+    }
+
+    .plan-name {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 0.5rem;
+    }
+
+    .plan-desc {
+      font-size: 0.875rem;
+      color: var(--color-text-muted);
+      margin-bottom: 1.75rem;
+      min-height: 42px;
+    }
+
+    .plan-price {
+      display: flex;
+      align-items: baseline;
+      gap: 0.35rem;
+      margin-bottom: 2rem;
+    }
+
+    .plan-price .amount {
+      font-size: 2.85rem;
+      font-weight: 800;
+      letter-spacing: -0.03em;
+      font-family: var(--font-mono);
+    }
+
+    .plan-price .period {
+      font-size: 0.9rem;
+      color: var(--color-text-dim);
+    }
+
+    .plan-features {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 0.9rem;
+      margin-bottom: 2.5rem;
+      flex: 1;
+    }
+
+    .plan-features li {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+      color: var(--color-text-muted);
+    }
+
+    .plan-features li svg {
+      flex-shrink: 0;
+      color: var(--accent-green);
+    }
+
+    /* ==========================================================================
+       11. TESTIMONIALS
+       ========================================================================== */
+    .testimonials-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 2rem;
+    }
+
+    .testimonial-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 2rem;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+    }
+
+    .stars-row {
+      display: flex;
+      gap: 4px;
+      color: #fbbf24;
+      margin-bottom: 1.25rem;
+    }
+
+    .testimonial-quote {
+      font-size: 0.95rem;
+      color: var(--color-text-main);
+      line-height: 1.6;
+      margin-bottom: 1.75rem;
+      font-style: italic;
+    }
+
+    .author-box {
+      display: flex;
+      align-items: center;
+      gap: 0.85rem;
+    }
+
+    .author-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: #1e293b;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: 1rem;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .author-info h5 {
+      font-size: 0.9375rem;
+      font-weight: 700;
+    }
+
+    .author-info p {
+      font-size: 0.78rem;
+      color: var(--color-text-dim);
+    }
+
+    /* ==========================================================================
+       12. FAQ ACCORDION
+       ========================================================================== */
+    .faq-wrapper {
+      max-width: 760px;
+      margin: 0 auto;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+    }
+
+    .faq-item {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+      transition: border-color 0.2s ease;
+    }
+
+    .faq-item.active {
+      border-color: rgba(0, 212, 255, 0.4);
+    }
+
+    .faq-question {
+      width: 100%;
+      background: transparent;
+      padding: 1.35rem 1.5rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      color: var(--color-text-main);
+      font-size: 1.05rem;
+      font-weight: 600;
+      text-align: left;
+    }
+
+    .faq-icon {
+      transition: transform 0.3s ease;
+      color: var(--cyan-glow);
+    }
+
+    .faq-item.active .faq-icon {
+      transform: rotate(180deg);
+    }
+
+    .faq-answer {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.35s ease, padding 0.35s ease;
+      padding: 0 1.5rem;
+      color: var(--color-text-muted);
+      font-size: 0.9375rem;
+      line-height: 1.65;
+    }
+
+    .faq-item.active .faq-answer {
+      max-height: 250px;
+      padding-bottom: 1.35rem;
+    }
+
+    /* ==========================================================================
+       13. FINAL CTA BANNER
+       ========================================================================== */
+    .final-cta {
+      padding: 5rem 0 7rem;
+    }
+
+    .cta-banner {
+      background: radial-gradient(circle at 50% 0%, rgba(0, 106, 245, 0.35) 0%, rgba(10, 15, 30, 0.95) 75%);
+      border: 1px solid rgba(0, 212, 255, 0.3);
+      border-radius: var(--radius-lg);
+      padding: 4.5rem 2rem;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+      box-shadow: 0 20px 80px -20px rgba(0, 106, 245, 0.5);
+    }
+
+    .cta-banner h2 {
+      font-size: clamp(2.2rem, 4vw, 3rem);
+      font-weight: 800;
+      margin-bottom: 1rem;
+      letter-spacing: -0.03em;
+    }
+
+    .cta-banner p {
+      font-size: 1.15rem;
+      color: var(--color-text-muted);
+      max-width: 540px;
+      margin: 0 auto 2.5rem;
+    }
+
+    /* ==========================================================================
+       14. FOOTER
+       ========================================================================== */
+    .footer {
+      padding: 3rem 0;
+      border-top: 1px solid var(--border-subtle);
+      background: #050811;
+      font-size: 0.875rem;
+      color: var(--color-text-dim);
+    }
+
+    .footer-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 1.5rem;
+    }
+
+    .footer-status {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--accent-green);
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      background: var(--accent-green);
+      border-radius: 50%;
+      box-shadow: 0 0 8px var(--accent-green);
+    }
+
+    /* ==========================================================================
+       15. RESPONSIVE BREAKPOINTS
+       ========================================================================== */
+    @media (max-width: 992px) {
+      .hero-grid {
+        grid-template-columns: 1fr;
+        text-align: center;
+        gap: 4rem;
+      }
+      .hero-content {
+        margin: 0 auto;
+      }
+      .hero-cta-row {
+        justify-content: center;
+      }
+      .hero-stats-row {
+        max-width: 450px;
+        margin: 0 auto;
+      }
+      .features-grid,
+      .steps-timeline,
+      .pricing-grid,
+      .testimonials-grid {
+        grid-template-columns: 1fr;
+        max-width: 520px;
+        margin: 0 auto;
+      }
+      .pricing-card.featured {
+        transform: none;
+      }
+      .comparison-wrapper {
+        grid-template-columns: 1fr;
+      }
+      .nav-links {
+        display: none;
+      }
+    }
+
+    @media (max-width: 580px) {
+      .section {
+        padding: 4.5rem 0;
+      }
+      .hero-stats-row {
+        grid-template-columns: 1fr;
+        gap: 1rem;
+      }
+      .hero-cta-row {
+        flex-direction: column;
+        width: 100%;
+      }
+      .btn-lg {
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Subtle Animated Grid Background -->
+  <div class="bg-mesh"></div>
+
+  <!-- ==========================================================================
+       HEADER & NAVIGATION
+       ========================================================================== -->
+  <header class="navbar" id="navbar">
+    <div class="container nav-inner">
+      <a href="#" class="nav-logo">
+        <div class="logo-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            <path d="M13 8l-4 4 4 4"></path>
+          </svg>
+        </div>
+        <span>ZaloFlow<span style="color: var(--cyan-glow)">.ai</span></span>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#features">Features</a></li>
+          <li><a href="#how-it-works">How It Works</a></li>
+          <li><a href="#demo">Live Demo</a></li>
+          <li><a href="#pricing">Pricing</a></li>
+          <li><a href="#faq">FAQ</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="#pricing" class="btn btn-green">
+          Get Started
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- ==========================================================================
+       [1] HERO SECTION
+       ========================================================================== -->
+  <section class="section hero">
+    <div class="container hero-grid">
+      <div class="hero-content">
+        <div class="pill-badge">
+          <span style="display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--cyan-glow); box-shadow:0 0 8px var(--cyan-glow);"></span>
+          Next-Gen Zalo Automation
+        </div>
+        <h1 class="hero-headline">
+          Sell 24/7 — <br />
+          <span style="background: var(--gradient-zalo); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Zero Staff Required</span>
+        </h1>
+        <p class="hero-sub">
+          Your intelligent Zalo bot takes orders, confirms purchases, syncs inventory, and sends tracking numbers in under 1 second.
+        </p>
+
+        <div class="hero-cta-row">
+          <a href="#pricing" class="btn btn-green btn-lg">
+            Start 7-Day Free Trial
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+              <polyline points="12 5 19 12 12 19"></polyline>
+            </svg>
+          </a>
+          <a href="#demo" class="btn btn-ghost btn-lg">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+              <polygon points="5 3 19 12 5 21 5 3"></polygon>
+            </svg>
+            Watch Demo
+          </a>
+        </div>
+
+        <div class="hero-stats-row">
+          <div class="stat-item">
+            <h4><span class="counter" data-target="500">0</span><span class="accent">+</span></h4>
+            <p>Active Shops</p>
+          </div>
+          <div class="stat-item">
+            <h4><span class="counter" data-target="10">0</span><span class="accent">k+</span></h4>
+            <p>Orders / Day</p>
+          </div>
+          <div class="stat-item">
+            <h4><span class="accent">&lt;</span><span class="counter" data-target="1">0</span><span class="accent">s</span></h4>
+            <p>Response Time</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Hero Phone Mockup -->
+      <div class="mockup-wrapper">
+        <div class="phone-mockup">
+          <div class="phone-screen">
+            <div class="phone-header">
+              <div class="phone-avatar">Z</div>
+              <div class="phone-header-info">
+                <h5>Shop Meo Xinh (Bot)</h5>
+                <span>● Active now • Instant reply</span>
+              </div>
+            </div>
+
+            <div class="phone-chat-body" id="heroChatBody">
+              <div class="chat-msg msg-user">Shop ơi, áo polo màu đen size L còn không?</div>
+              
+              <div class="chat-msg msg-bot">
+                Dạ bên em còn đúng 3 chiếc size L màu Đen ạ! ✨
+                <div class="product-card-msg">
+                  <div class="title">Áo Polo Classic Cotton Coolmate</div>
+                  <div class="price">249.000 ₫</div>
+                  <small style="color:#94a3b8">Chất liệu 100% Cotton thoáng khí</small>
+                </div>
+              </div>
+
+              <div class="chat-msg msg-user">Cho mình lấy 1 cái ship về Cầu Giấy nhé!</div>
+
+              <div class="chat-msg msg-bot">
+                ✅ <strong>Đã tạo đơn hàng thành công!</strong>
+                <div class="invoice-badge">Mã đơn: #ZL-9842</div>
+                <div style="font-size:0.75rem; margin-top:4px; color:#cbd5e1;">
+                  📍 Đ/c: Cầu Giấy, Hà Nội<br/>
+                  💰 Tổng: 279.000 ₫ (Freeship COD)
+                </div>
+              </div>
+
+              <div class="typing-indicator" id="liveTyping">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       [2] SOCIAL PROOF MARQUEE
+       ========================================================================== -->
+  <section class="marquee-section">
+    <div class="marquee-track">
+      <div class="pill-item"><span class="dot"></span> 3x Revenue Increase</div>
+      <div class="pill-item"><span class="dot"></span> 99.9% Uptime SLA</div>
+      <div class="pill-item"><span class="dot"></span> 24/7 Zero-Staff Sales</div>
+      <div class="pill-item"><span class="dot"></span> 1,200,000+ Automated Messages / Mo</div>
+      <div class="pill-item"><span class="dot"></span> Zero Missed Inquiries</div>
+      <div class="pill-item"><span class="dot"></span> Real-time Bank QR Verification</div>
+      <!-- Duplicate for seamless looping -->
+      <div class="pill-item"><span class="dot"></span> 3x Revenue Increase</div>
+      <div class="pill-item"><span class="dot"></span> 99.9% Uptime SLA</div>
+      <div class="pill-item"><span class="dot"></span> 24/7 Zero-Staff Sales</div>
+      <div class="pill-item"><span class="dot"></span> 1,200,000+ Automated Messages / Mo</div>
+      <div class="pill-item"><span class="dot"></span> Zero Missed Inquiries</div>
+      <div class="pill-item"><span class="dot"></span> Real-time Bank QR Verification</div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       [3] FEATURES GRID
+       ========================================================================== -->
+  <section class="section" id="features">
+    <div class="container">
+      <div class="section-header">
+        <div class="pill-badge">Powerful Automation</div>
+        <h2 class="section-title">Everything You Need to <span class="gradient-text">Scale on Zalo</span></h2>
+        <p class="section-desc">Turn every conversation into an instant closed deal without hiring extra support agents.</p>
+      </div>
+
+      <div class="features-grid">
+        <!-- Feature 1 -->
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          </div>
+          <h3>Auto Order Intake</h3>
+          <p>The AI bot understands customer intent, checks size/color variations, and closes orders directly inside Zalo chat.</p>
+        </div>
+
+        <!-- Feature 2 -->
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+              <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+              <line x1="12" y1="22.08" x2="12" y2="12"></line>
+            </svg>
+          </div>
+          <h3>Real-Time Inventory Sync</h3>
+          <p>Never oversell. Stock counts decrement automatically across your warehouse as soon as an order is placed.</p>
+        </div>
+
+        <!-- Feature 3 -->
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="1" y="3" width="15" height="13"></rect>
+              <polygon points="16 8 20 8 23 11 23 16 16 16 16 8"></polygon>
+              <circle cx="5.5" cy="18.5" r="2.5"></circle>
+              <circle cx="18.5" cy="18.5" r="2.5"></circle>
+            </svg>
+          </div>
+          <h3>Automated Tracking Notices</h3>
+          <p>Auto-push delivery status and tracking codes (GHTK, GHN, Viettel Post) to buyers without manual typing.</p>
+        </div>
+
+        <!-- Feature 4 -->
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+              <circle cx="9" cy="7" r="4"></circle>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+            </svg>
+          </div>
+          <h3>Multi-Channel Support</h3>
+          <p>Connect Zalo Official Accounts (OA), personal Zalo profiles, and VIP customer groups in one unified console.</p>
+        </div>
+
+        <!-- Feature 5 -->
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="18" y1="20" x2="18" y2="10"></line>
+              <line x1="12" y1="20" x2="12" y2="4"></line>
+              <line x1="6" y1="20" x2="6" y2="14"></line>
+            </svg>
+          </div>
+          <h3>Sales Analytics Dashboard</h3>
+          <p>Track top-selling products, conversion rates, customer lifetime value, and peak ordering hours in real time.</p>
+        </div>
+
+        <!-- Feature 6 -->
+        <div class="feature-card">
+          <div class="feature-icon-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+              <line x1="2" y1="10" x2="22" y2="10"></line>
+            </svg>
+          </div>
+          <h3>VietQR & COD Verification</h3>
+          <p>Generate dynamic VietQR codes with exact order amounts and auto-verify bank transfers instantly via webhook.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       [4] HOW IT WORKS
+       ========================================================================= -->
+  <section class="section" id="how-it-works" style="background: rgba(10, 15, 30, 0.4);">
+    <div class="container">
+      <div class="section-header">
+        <div class="pill-badge">Zero Friction Setup</div>
+        <h2 class="section-title">Up and Running in <span class="gradient-text">3 Simple Steps</span></h2>
+        <p class="section-desc">No coding required. Go live in under 5 minutes with our pre-built e-commerce templates.</p>
+      </div>
+
+      <div class="steps-timeline">
+        <div class="step-card">
+          <span class="step-number">01</span>
+          <div class="step-badge">Step 1</div>
+          <h3>Connect Your Zalo OA</h3>
+          <p>Scan a QR code or authenticate your Zalo Official Account with 1 click. Your contacts sync instantly.</p>
+        </div>
+
+        <div class="step-card">
+          <span class="step-number">02</span>
+          <div class="step-badge">Step 2</div>
+          <h3>Upload Products & Rules</h3>
+          <p>Import your catalog from Excel or Shopee. Set up automatic discount rules, shipping rates, and upsell prompts.</p>
+        </div>
+
+        <div class="step-card">
+          <span class="step-number">03</span>
+          <div class="step-badge">Step 3</div>
+          <h3>Autopilot Sales 24/7</h3>
+          <p>Sit back as your bot chats with customers, confirms payments, and generates shipping labels automatically.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       [5] LIVE DEMO COMPARISON (Split View)
+       ========================================================================== -->
+  <section class="section" id="demo">
+    <div class="container">
+      <div class="section-header">
+        <div class="pill-badge">Performance Benchmark</div>
+        <h2 class="section-title">Manual Staff vs. <span class="gradient-text">ZaloFlow Bot</span></h2>
+        <p class="section-desc">See why over 500+ e-commerce brands replaced manual chat shifts with automated sales bots.</p>
+      </div>
+
+      <div class="comparison-wrapper">
+        <!-- Bad: Manual -->
+        <div class="comparison-box bad">
+          <div class="comp-header">
+            <h4>Traditional Manual Chat</h4>
+            <span class="comp-tag bad">Outdated & Slow</span>
+          </div>
+          <ul class="comp-list">
+            <li>
+              <svg class="comp-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <div><strong>15–45 min response time</strong> during peak hours or late night.</div>
+            </li>
+            <li>
+              <svg class="comp-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <div><strong>High staffing cost:</strong> 3 shifts costing $800–$1,500/month.</div>
+            </li>
+            <li>
+              <svg class="comp-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <div><strong>Frequent human errors:</strong> wrong addresses, wrong sizes, stock confusion.</div>
+            </li>
+            <li>
+              <svg class="comp-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              <div><strong>Lost midnight buyers:</strong> 40% of sales queries happen after 10 PM.</div>
+            </li>
+          </ul>
+        </div>
+
+        <!-- Good: ZaloFlow Bot -->
+        <div class="comparison-box good">
+          <div class="comp-header">
+            <h4>ZaloFlow Automated Bot</h4>
+            <span class="comp-tag good">High Performance</span>
+          </div>
+          <ul class="comp-list">
+            <li>
+              <svg class="comp-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <div><strong>&lt; 1-second instant reply</strong> 24 hours a day, 365 days a year.</div>
+            </li>
+            <li>
+              <svg class="comp-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <div><strong>Fixed predictable cost:</strong> Starts free, scale up for only $12/month.</div>
+            </li>
+            <li>
+              <svg class="comp-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <div><strong>100% accuracy:</strong> Perfect order receipts, dynamic QR, zero mistakes.</div>
+            </li>
+            <li>
+              <svg class="comp-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#00e676" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg>
+              <div><strong>Instant midnight closing:</strong> Captures and confirms late-night buyers while you sleep.</div>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       [6] PRICING
+       ========================================================================== -->
+  <section class="section" id="pricing">
+    <div class="container">
+      <div class="section-header">
+        <div class="pill-badge">Transparent Pricing</div>
+        <h2 class="section-title">Simple Plans for <span class="gradient-text">Every Stage</span></h2>
+        <p class="section-desc">No hidden transaction fees. Upgrade or cancel anytime with zero lock-in.</p>
+      </div>
+
+      <div class="pricing-grid">
+        <!-- Starter Plan -->
+        <div class="pricing-card">
+          <h3 class="plan-name">Free Starter</h3>
+          <p class="plan-desc">Perfect for testing automation on a new boutique shop.</p>
+          <div class="plan-price">
+            <span class="amount">$0</span>
+            <span class="period">/ month</span>
+          </div>
+          <ul class="plan-features">
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Up to 50 automated orders/mo</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> 1 Zalo Account connection</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Standard auto-reply scripts</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Community support</li>
+          </ul>
+          <a href="#cta" class="btn btn-ghost">Get Started Free</a>
+        </div>
+
+        <!-- Pro Plan (Featured) -->
+        <div class="pricing-card featured">
+          <div class="featured-badge">Most Popular</div>
+          <h3 class="plan-name">Pro Growth</h3>
+          <p class="plan-desc">For active shops ready to scale sales and automate fulfillment.</p>
+          <div class="plan-price">
+            <span class="amount">$12</span>
+            <span class="period">/ month</span>
+          </div>
+          <ul class="plan-features">
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> <strong>Unlimited</strong> automated orders</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> 3 Zalo OA & profile connections</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Dynamic VietQR payment matching</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Real-time shipping carrier sync</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Priority 24/7 support</li>
+          </ul>
+          <a href="#cta" class="btn btn-green">Start 7-Day Free Trial</a>
+        </div>
+
+        <!-- Business Plan -->
+        <div class="pricing-card">
+          <h3 class="plan-name">Enterprise</h3>
+          <p class="plan-desc">For high-volume multi-brand e-commerce organizations.</p>
+          <div class="plan-price">
+            <span class="amount">$28</span>
+            <span class="period">/ month</span>
+          </div>
+          <ul class="plan-features">
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Unlimited orders & messages</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Up to 15 Zalo Accounts</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Custom ERP & Webhook API</li>
+            <li><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"></polyline></svg> Dedicated account manager</li>
+          </ul>
+          <a href="#cta" class="btn btn-ghost">Contact Sales</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       [7] TESTIMONIALS
+       ========================================================================== -->
+  <section class="section" style="background: rgba(10, 15, 30, 0.4);">
+    <div class="container">
+      <div class="section-header">
+        <div class="pill-badge">Merchant Success</div>
+        <h2 class="section-title">Trusted by <span class="gradient-text">500+ Top Sellers</span></h2>
+        <p class="section-desc">Here is what Vietnamese shop owners have to say about scaling with ZaloFlow.</p>
+      </div>
+
+      <div class="testimonials-grid">
+        <div class="testimonial-card">
+          <div>
+            <div class="stars-row">★★★★★</div>
+            <p class="testimonial-quote">
+              "We used to miss 30% of customer messages after 10 PM. Since installing ZaloFlow, the bot closed over 420 orders while our team was sleeping!"
+            </p>
+          </div>
+          <div class="author-box">
+            <div class="author-avatar">HN</div>
+            <div class="author-info">
+              <h5>Hoàng Nam</h5>
+              <p>Founder, NamSport Store</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card">
+          <div>
+            <div class="stars-row">★★★★★</div>
+            <p class="testimonial-quote">
+              "The dynamic VietQR verification is incredible. Customers scan the QR, the bot confirms payment in 2 seconds and prints the shipping label."
+            </p>
+          </div>
+          <div class="author-box">
+            <div class="author-avatar">ML</div>
+            <div class="author-info">
+              <h5>Mai Linh</h5>
+              <p>Owner, Linh Cosmetic Hà Nội</p>
+            </div>
+          </div>
+        </div>
+
+        <div class="testimonial-card">
+          <div>
+            <div class="stars-row">★★★★★</div>
+            <p class="testimonial-quote">
+              "Saved us 2 full-time customer service salaries ($900/mo). The bot handles 90% of order questions with zero mistakes."
+            </p>
+          </div>
+          <div class="author-box">
+            <div class="author-avatar">TD</div>
+            <div class="author-info">
+              <h5>Trần Đức</h5>
+              <p>Operations Lead, GenZ Fashion</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       [8] FAQ ACCORDION
+       ========================================================================== -->
+  <section class="section" id="faq">
+    <div class="container">
+      <div class="section-header">
+        <div class="pill-badge">Got Questions?</div>
+        <h2 class="section-title">Frequently Asked <span class="gradient-text">Questions</span></h2>
+        <p class="section-desc">Everything you need to know about setting up your automated Zalo sales bot.</p>
+      </div>
+
+      <div class="faq-wrapper">
+        <div class="faq-item active">
+          <button class="faq-question">
+            <span>Does this violate Zalo terms of service?</span>
+            <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="faq-answer">
+            No. ZaloFlow integrates directly via official Zalo OA APIs and adheres 100% to Zalo messaging policies. Your account is completely safe from blocks or restrictions.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Can the bot handle complex product variations?</span>
+            <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="faq-answer">
+            Yes! ZaloFlow supports multi-level variants (e.g. Size, Color, Flavor, Material) and automatically updates stock levels for each combination in real-time.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>What happens when the bot cannot answer a question?</span>
+            <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="faq-answer">
+            The bot smoothly hands over the conversation to your human staff and sends a high-priority alert notification via Telegram or Mobile App so you never miss a VIP lead.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>Can I connect multiple shipping carriers?</span>
+            <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="faq-answer">
+            Yes. ZaloFlow integrates with GHTK, GHN, Viettel Post, and Ahamove. Once an order is confirmed, the shipping order is pushed directly to your carrier account.
+          </div>
+        </div>
+
+        <div class="faq-item">
+          <button class="faq-question">
+            <span>How long does the setup take?</span>
+            <svg class="faq-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="6 9 12 15 18 9"></polyline></svg>
+          </button>
+          <div class="faq-answer">
+            Less than 5 minutes. You can import products via Excel or sync with your existing store, scan the Zalo connection QR code, and start taking automated orders immediately.
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       [9] FINAL CTA BANNER
+       ========================================================================== -->
+  <section class="section final-cta" id="cta">
+    <div class="container">
+      <div class="cta-banner">
+        <h2>Start Selling Smarter Today</h2>
+        <p>Join 500+ top merchants automating their sales pipeline. Try ZaloFlow free for 7 days with zero risk.</p>
+        <a href="#pricing" class="btn btn-green btn-lg" style="box-shadow: 0 0 40px rgba(0, 230, 118, 0.6);">
+          Create Your Zalo Bot Free →
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ==========================================================================
+       FOOTER
+       ========================================================================== -->
+  <footer class="footer">
+    <div class="container footer-inner">
+      <div style="display:flex; align-items:center; gap:0.5rem; font-weight:700; color:var(--color-text-main);">
+        <div class="logo-icon" style="width:24px; height:24px; border-radius:6px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+        </div>
+        ZaloFlow AI © 2026. All rights reserved.
+      </div>
+
+      <div class="footer-status">
+        <span class="status-dot"></span>
+        All Systems Operational • 99.9% Uptime
+      </div>
+    </div>
+  </footer>
+
+  <!-- ==========================================================================
+       VANILLA JAVASCRIPT INTERACTIONS
+       ========================================================================== -->
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      // 1. Animated Number Counters (Intersection Observer)
+      const counters = document.querySelectorAll('.counter');
+      const counterObserver = new IntersectionObserver((entries, observer) => {
+        entries.forEach(entry => {
+          if (entry.isIntersecting) {
+            const target = +entry.target.getAttribute('data-target');
+            let count = 0;
+            const step = Math.max(1, Math.ceil(target / 40));
+            const timer = setInterval(() => {
+              count += step;
+              if (count >= target) {
+                entry.target.innerText = target;
+                clearInterval(timer);
+              } else {
+                entry.target.innerText = count;
+              }
+            }, 30);
+            observer.unobserve(entry.target);
+          }
+        });
+      }, { threshold: 0.5 });
+
+      counters.forEach(c => counterObserver.observe(c));
+
+      // 2. Interactive FAQ Accordion
+      const faqItems = document.querySelectorAll('.faq-item');
+      faqItems.forEach(item => {
+        const btn = item.querySelector('.faq-question');
+        btn.addEventListener('click', () => {
+          const isActive = item.classList.contains('active');
+          faqItems.forEach(i => i.classList.remove('active'));
+          if (!isActive) {
+            item.classList.add('active');
+          }
+        });
+      });
+
+      // 3. Navbar Blur on Scroll
+      const navbar = document.getElementById('navbar');
+      window.addEventListener('scroll', () => {
+        if (window.scrollY > 40) {
+          navbar.style.background = 'rgba(7, 10, 20, 0.9)';
+          navbar.style.boxShadow = '0 10px 30px rgba(0, 0, 0, 0.5)';
+        } else {
+          navbar.style.background = 'rgba(7, 10, 20, 0.7)';
+          navbar.style.boxShadow = 'none';
+        }
+      });
+    });
+  </script>
+</body>
+</html>
