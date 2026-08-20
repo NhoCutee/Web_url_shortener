@@ -3,6 +3,7 @@
  *
  * Tao short link su dung SHA-256 + Base64URL (RFC 4648 §5).
  * Primary Key: `id` (VARCHAR(10)) chua ma short code truc tiep.
+ * Bao mat: BAT BUOC xac thuc qua API_KEY (Header x-api-key, Authorization Bearer, hoac api_key trong body).
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -45,9 +46,34 @@ function getBaseUrl(request: NextRequest): string {
   return `${request.nextUrl.protocol}//${request.nextUrl.host}`;
 }
 
+/**
+ * POST /api/shorten
+ * Tao short link moi voi BAT BUOC xac thuc API Key
+ */
 export async function POST(request: NextRequest) {
   try {
-    // --- 1. Parse request body ---
+    // --- 1. Xac thuc API Key bat buoc ---
+    const requiredApiKey = process.env.API_KEY || process.env.SHORTEN_API_KEY;
+
+    if (!requiredApiKey) {
+      console.error("[POST /api/shorten] Server chua cau hinh API_KEY trong bien moi truong (.env)");
+      return NextResponse.json(
+        { error: "Server configuration error: API_KEY is not set in environment" },
+        { status: 500 }
+      );
+    }
+
+    // Lay api key tu header `x-api-key`, `Authorization: Bearer <key>`, query `?api_key=...`
+    const headerKey = request.headers.get("x-api-key");
+    const authHeader = request.headers.get("authorization");
+    const bearerKey = authHeader?.startsWith("Bearer ")
+      ? authHeader.substring(7).trim()
+      : null;
+    
+    const { searchParams } = new URL(request.url);
+    const queryKey = searchParams.get("api_key");
+
+    // Parse request body
     const body = await request.json().catch(() => null);
     if (!body || typeof body !== "object") {
       return NextResponse.json(
@@ -56,11 +82,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { original_url, alias, length = 7 } = body as {
+    const { original_url, alias, length = 7, api_key: bodyApiKey } = body as {
       original_url?: string;
       alias?: string;
       length?: number;
+      api_key?: string;
     };
+
+    const clientKey = headerKey || bearerKey || queryKey || bodyApiKey;
+
+    // Kiem tra key co khop voi API_KEY trong env khong
+    if (!clientKey || clientKey !== requiredApiKey) {
+      return NextResponse.json(
+        { error: "Unauthorized: API Key khong hop le hoac bi thieu" },
+        { status: 401 }
+      );
+    }
 
     // --- 2. Chuan hoa & URL-Encode link goc theo tieu chuan quoc te ---
     if (!original_url || typeof original_url !== "string") {
