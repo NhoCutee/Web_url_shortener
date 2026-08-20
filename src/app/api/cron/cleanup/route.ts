@@ -1,11 +1,30 @@
 import { createServerSupabaseClient } from '@/lib/supabase';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 // API Route: GET /api/cron/cleanup
 // Muc dich: Tu dong xoa cac link da tao hon 15 ngay truoc
-// Duoc kich hoat boi Vercel Cron Jobs moi ngay luc 2:00 AM UTC
+// Bao mat: Xac thuc qua CRON_SECRET trong header hoac query param
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  // --- Xac thuc CRON_SECRET ---
+  const cronSecret = process.env.CRON_SECRET;
+
+  if (cronSecret) {
+    // Lay key tu header "x-cron-secret" hoac query "?secret=..."
+    const { searchParams } = new URL(request.url);
+    const querySecret = searchParams.get('secret');
+    const headerSecret = request.headers.get('x-cron-secret');
+
+    const clientSecret = headerSecret || querySecret;
+
+    if (!clientSecret || clientSecret !== cronSecret) {
+      return NextResponse.json(
+        { error: 'Unauthorized: CRON_SECRET khong hop le hoac bi thieu' },
+        { status: 401 }
+      );
+    }
+  }
+
   // Khoi tao Supabase client phia server
   const supabase = createServerSupabaseClient();
 
