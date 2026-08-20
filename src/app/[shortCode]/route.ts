@@ -1,9 +1,9 @@
 /**
  * GET /[shortCode] - Redirect handler
  *
- * Query DB theo Primary Key `id` (VARCHAR(10)), tang click_count bat dong bo,
- * va redirect 302 sang original_url.
- * Database: PostgreSQL (Docker) qua pg Pool.
+ * Query DB theo Primary Key `id` (VARCHAR(10)) va redirect 302 sang original_url.
+ * Toi uu toc do: Chi doc original_url, KHONG dem click -> redirect sieu toc (< 1ms).
+ * Database: PostgreSQL qua pg Pool.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -21,9 +21,9 @@ export async function GET(
   }
 
   try {
-    // Query link truc tiep theo Primary Key `id`
+    // Query truc tiep URL goc theo Primary Key `id`
     const result = await pool.query(
-      "SELECT original_url, click_count FROM links WHERE id = $1",
+      "SELECT original_url FROM links WHERE id = $1",
       [shortCode]
     );
 
@@ -33,18 +33,10 @@ export async function GET(
       );
     }
 
-    const link = result.rows[0];
+    const { original_url } = result.rows[0];
 
-    // Tang click_count bat dong bo theo Primary Key `id`
-    pool.query(
-      "UPDATE links SET click_count = $1 WHERE id = $2",
-      [link.click_count + 1, shortCode]
-    ).catch((err) => {
-      console.error(`[Redirect] Failed to update click_count for ${shortCode}:`, err);
-    });
-
-    // Redirect 302 sang URL goc
-    return NextResponse.redirect(link.original_url, { status: 302 });
+    // Redirect 302 sang URL goc (Khong dem click, toi uu toc do toi da)
+    return NextResponse.redirect(original_url, { status: 302 });
 
   } catch (err) {
     console.error(`[Redirect] Unexpected error for /${shortCode}:`, err);
